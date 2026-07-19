@@ -32,7 +32,7 @@ export function KeyTable({ records, pagination, admin = false, onReveal, onRetry
     { title: "Sites", dataIndex: "usageSiteCount", width: 75, align: "right" },
     { title: "Sampled", dataIndex: "sampledAt", width: 180, render: date },
     { title: "Submitted", dataIndex: "submittedAt", width: 180, render: date },
-    ...(isAdmin ? [{ title: "Failure", dataIndex: "failureMessage", width: 220, render: (value: string | null) => value ?? "—" }] : []),
+    { title: "Failure", dataIndex: "failureMessage", width: 260, render: (value: string | null) => value ?? "—" },
     ...(isAdmin ? [{
       title: "", key: "action", width: 60, fixed: "right" as const,
       render: (_: unknown, record: KeyRecord) => record.status === "upstream_error" || record.status === "test_failed"
@@ -40,5 +40,5 @@ export function KeyTable({ records, pagination, admin = false, onReveal, onRetry
         : null,
     }] : []),
   ];
-  return <Table rowKey="id" size="small" columns={columns} dataSource={records} pagination={pagination} scroll={{ x: isAdmin ? 1350 : 1050 }} />;
+  return <Table rowKey="id" size="small" columns={columns} dataSource={records} pagination={pagination} scroll={{ x: isAdmin ? 1350 : 1300 }} />;
 }

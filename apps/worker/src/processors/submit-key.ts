@@ -62,13 +62,14 @@ export async function processSubmitKey(
     ]);
     const upstreamItemId = result.itemIds[0];
     if (!result.success || !upstreamItemId) {
+      const rejectionMessage = result.failureMessage ?? "Upstream rejected this Key";
       await prisma.$transaction([
         prisma.keyRecord.update({
           where: { id: record.id },
           data: {
             status: "TEST_FAILED",
             failureCode: "UPSTREAM_REJECTED",
-            failureMessage: "上游未接受该 Key",
+            failureMessage: rejectionMessage,
           },
         }),
         prisma.jobRun.update({
@@ -76,7 +77,7 @@ export async function processSubmitKey(
           data: {
             status: "FAILED",
             resultCode: "UPSTREAM_REJECTED",
-            resultMessage: "上游未接受该 Key",
+            resultMessage: rejectionMessage,
             finishedAt: new Date(),
           },
         }),

@@ -122,6 +122,64 @@ describe("processSubmitKey", () => {
     expect(submitKeys).toHaveBeenCalledWith("configured-channel", expect.any(Array));
   });
 
+  it("stores the explicit upstream rejection reason", async () => {
+    const record = await createWorkerRecord("sk-ant-api03-rejected-X7AA");
+    const submitKeys = vi.fn().mockResolvedValue({
+      success: false,
+      itemIds: [],
+      failureMessage: "This organization has been disabled.",
+    });
+
+    await processSubmitKey(
+      { keyRecordId: record.id },
+      { client: { login: vi.fn(), submitKeys }, encryptionKey },
+    );
+
+    await expect(
+      prisma.keyRecord.findUniqueOrThrow({ where: { id: record.id } }),
+    ).resolves.toMatchObject({
+      status: "TEST_FAILED",
+      failureCode: "UPSTREAM_REJECTED",
+      failureMessage: "This organization has been disabled.",
+    });
+    await expect(
+      prisma.jobRun.findFirstOrThrow({
+        where: { jobType: "submit-key", keyRecordId: record.id },
+      }),
+    ).resolves.toMatchObject({
+      status: "FAILED",
+      resultCode: "UPSTREAM_REJECTED",
+      resultMessage: "This organization has been disabled.",
+    });
+  });
+
+  it("stores an English fallback when the upstream omits the rejection reason", async () => {
+    const record = await createWorkerRecord("sk-ant-api03-rejected-fallback-X7AA");
+    const submitKeys = vi.fn().mockResolvedValue({ success: false, itemIds: [] });
+
+    await processSubmitKey(
+      { keyRecordId: record.id },
+      { client: { login: vi.fn(), submitKeys }, encryptionKey },
+    );
+
+    await expect(
+      prisma.keyRecord.findUniqueOrThrow({ where: { id: record.id } }),
+    ).resolves.toMatchObject({
+      status: "TEST_FAILED",
+      failureCode: "UPSTREAM_REJECTED",
+      failureMessage: "Upstream rejected this Key",
+    });
+    await expect(
+      prisma.jobRun.findFirstOrThrow({
+        where: { jobType: "submit-key", keyRecordId: record.id },
+      }),
+    ).resolves.toMatchObject({
+      status: "FAILED",
+      resultCode: "UPSTREAM_REJECTED",
+      resultMessage: "Upstream rejected this Key",
+    });
+  });
+
   it("records a sanitized retrying failure before the final attempt", async () => {
     const record = await createWorkerRecord("sk-ant-api03-worker-X7AA");
     const submitKeys = vi.fn().mockRejectedValue(new Error("network failed for sk-ant-secret"));

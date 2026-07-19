@@ -153,7 +153,7 @@ describe("SupplierPortalClient", () => {
           {
             row_id: submittedRows[1]?.row_id,
             status: "failed",
-            message: "invalid credential",
+            message: "This organization has been disabled.",
           },
         ],
       });
@@ -168,7 +168,11 @@ describe("SupplierPortalClient", () => {
     await expect(client.submitKeys("7", [
       { apiKey: "key-one", warrantyHours: 24 },
       { apiKey: "key-two", warrantyHours: 48 },
-    ])).resolves.toEqual({ success: false, itemIds: ["42"] });
+    ])).resolves.toEqual({
+      success: false,
+      itemIds: ["42"],
+      failureMessage: "This organization has been disabled.",
+    });
 
     expect(submittedRows).toHaveLength(2);
     expect(submittedRows[0]?.row_id).not.toBe(submittedRows[1]?.row_id);
@@ -176,6 +180,194 @@ describe("SupplierPortalClient", () => {
       24,
       48,
     ]);
+  });
+
+  it("redacts Key-like values and limits propagated failure messages", async () => {
+    const firstExposedKey = "sk-ant-api03-secret-value";
+    const secondExposedKey = "sk-ant-another_secret-42";
+    const suffix = "x".repeat(500);
+    const baseUrl = await startServer((request, response, body) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      const submittedRow = (body as { rows: Array<{ row_id: string }> }).rows[0];
+      json(response, 200, {
+        results: [{
+          row_id: submittedRow?.row_id,
+          status: "failed",
+          message:
+            `  Rejected ${firstExposedKey} and ${secondExposedKey}. ${suffix}  `,
+        }],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    const result = await client.submitKeys("7", [
+      { apiKey: "key-one", warrantyHours: 24 },
+    ]);
+
+    expect(result.success).toBe(false);
+    expect(result.failureMessage).toBe(
+      `Rejected [REDACTED_KEY] and [REDACTED_KEY]. ${suffix}`.slice(0, 500),
+    );
+    expect(result.failureMessage).not.toContain(firstExposedKey);
+    expect(result.failureMessage).not.toContain(secondExposedKey);
+    expect(result.failureMessage?.length).toBeLessThanOrEqual(500);
+  });
+
+  it("redacts the exact submitted Key when an upstream failure echoes it", async () => {
+    const submittedKey = "custom.secret+$[42]";
+    const genericKey = "sk-ant-api03-another-secret";
+    const baseUrl = await startServer((request, response, body) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      const submittedRow = (body as { rows: Array<{ row_id: string }> }).rows[0];
+      json(response, 200, {
+        results: [{
+          row_id: submittedRow?.row_id,
+          status: "failed",
+          message: `Rejected ${submittedKey}; related ${genericKey}`,
+        }],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.submitKeys("7", [
+      { apiKey: submittedKey, warrantyHours: 24 },
+    ])).resolves.toEqual({
+      success: false,
+      itemIds: [],
+      failureMessage: "Rejected [REDACTED_KEY]; related [REDACTED_KEY]",
+    });
+  });
+
+  it("redacts a longer submitted Key before a Key that prefixes it", async () => {
+    const shorterKey = "custom-prefix";
+    const longerKey = `${shorterKey}-private-suffix`;
+    const baseUrl = await startServer((request, response, body) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      const submittedRows = (body as { rows: Array<{ row_id: string }> }).rows;
+      json(response, 200, {
+        results: [
+          {
+            row_id: submittedRows[0]?.row_id,
+            status: "failed",
+            message: `Rejected ${longerKey}`,
+          },
+          {
+            row_id: submittedRows[1]?.row_id,
+            status: "failed",
+          },
+        ],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.submitKeys("7", [
+      { apiKey: shorterKey, warrantyHours: 24 },
+      { apiKey: longerKey, warrantyHours: 48 },
+    ])).resolves.toEqual({
+      success: false,
+      itemIds: [],
+      failureMessage: "Rejected [REDACTED_KEY]",
+    });
+  });
+
+  it("uses request order for the first failed row when results are reversed", async () => {
+    const baseUrl = await startServer((request, response, body) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      const submittedRows = (body as { rows: Array<{ row_id: string }> }).rows;
+      json(response, 200, {
+        results: [
+          {
+            row_id: submittedRows[1]?.row_id,
+            status: "failed",
+            message: "Second request failed.",
+          },
+          {
+            row_id: submittedRows[0]?.row_id,
+            status: "failed",
+            message: "First request failed.",
+          },
+        ],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.submitKeys("7", [
+      { apiKey: "key-one", warrantyHours: 24 },
+      { apiKey: "key-two", warrantyHours: 48 },
+    ])).resolves.toEqual({
+      success: false,
+      itemIds: [],
+      failureMessage: "First request failed.",
+    });
+  });
+
+  it("omits the failure message when the failed row message is blank", async () => {
+    const baseUrl = await startServer((request, response, body) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      const submittedRow = (body as { rows: Array<{ row_id: string }> }).rows[0];
+      json(response, 200, {
+        results: [{
+          row_id: submittedRow?.row_id,
+          status: "failed",
+          message: "  \n\t  ",
+        }],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.submitKeys("7", [
+      { apiKey: "key-one", warrantyHours: 24 },
+    ])).resolves.toEqual({ success: false, itemIds: [] });
   });
 
   it("rejects submission results that do not match the requested row IDs", async () => {

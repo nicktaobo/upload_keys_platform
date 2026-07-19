@@ -83,7 +83,7 @@ describe("KeyHub application", () => {
     const fetchMock = installApi([
       { path: "/api/auth/me", body: { user: apiUser, csrfToken: "csrf-user" } },
       { path: "/api/keys/summary", body: { submittedCount: 12, healthyCount: 9, usageUsd: 184.5, latestSampleAt: key.sampledAt } },
-      { path: "/api/keys", body: { items: [key], total: 1 } },
+      { path: "/api/keys", body: { items: [{ ...key, status: "UPSTREAM_ERROR", failureMessage: "This organization has been disabled." }], total: 1 } },
       { method: "POST", path: "/api/keys/refresh", body: { message: "Refresh queued" } },
       { method: "POST", path: "/api/keys/k1/reveal", body: { apiKey: "sk-ant-api03-full-secret" } },
     ]);
@@ -94,6 +94,7 @@ describe("KeyHub application", () => {
 
     expect(await screen.findByText("$184.50")).toBeVisible();
     expect(screen.getByText("12")).toBeVisible();
+    expect(screen.getByText("This organization has been disabled.")).toBeVisible();
     await actor.click(screen.getByRole("combobox", { name: "Filter by status" }));
     await actor.click(await screen.findByText("Submitted", { selector: ".ant-select-item-option-content" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("status=SUBMITTED"), expect.anything()));

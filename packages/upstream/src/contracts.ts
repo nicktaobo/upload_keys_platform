@@ -159,6 +159,7 @@ export type UpstreamSubmissionResponse = z.output<typeof submissionResultSchema>
 export interface UpstreamSubmissionResult {
   success: boolean;
   itemIds: string[];
+  failureMessage?: string;
 }
 export type UpstreamBatchSummary = z.output<typeof batchSummarySchema>;
 export type UpstreamBatchNote = z.output<typeof batchNoteSchema>;

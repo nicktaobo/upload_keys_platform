@@ -204,7 +204,10 @@ export class SupplierPortalClient {
 }
 
 function mapSubmissionResponse(
-  requestRows: Array<{ row_id: string }>,
+  requestRows: Array<{
+    row_id: string;
+    official_credential: { api_key: string };
+  }>,
   response: UpstreamSubmissionResponse,
 ): UpstreamSubmissionResult {
   const requestedIds = new Set(requestRows.map(({ row_id }) => row_id));
@@ -229,12 +232,28 @@ function mapSubmissionResponse(
       ? [result.item.id]
       : [];
   });
+  const firstFailure = requestRows
+    .map(({ row_id }) => byRowId.get(row_id))
+    .find((result) => result?.status === "failed");
+  let failureMessage = firstFailure?.message?.trim();
+  const requestKeys = [...new Set(
+    requestRows
+      .map(({ official_credential }) => official_credential.api_key)
+      .filter((apiKey) => apiKey.length > 0),
+  )].sort((left, right) => right.length - left.length);
+  for (const apiKey of requestKeys) {
+    failureMessage = failureMessage?.replaceAll(apiKey, "[REDACTED_KEY]");
+  }
+  failureMessage = failureMessage
+    ?.replace(/sk-ant-[A-Za-z0-9_-]+/gu, "[REDACTED_KEY]")
+    .slice(0, 500);
   return {
     success: requestRows.every(({ row_id }) => {
       const result = byRowId.get(row_id);
       return result?.status === "submitted" && result.item !== undefined;
     }),
     itemIds,
+    ...(failureMessage ? { failureMessage } : {}),
   };
 }
 
