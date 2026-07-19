@@ -13,7 +13,6 @@ export default tseslint.config(
         ...globals.browser,
         ...globals.node,
       },
-      parserOptions: { projectService: true },
     },
     rules: {
       "@typescript-eslint/consistent-type-imports": "error",
