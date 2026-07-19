@@ -74,7 +74,7 @@ curl -fsS "http://localhost:${WEB_PORT:-8080}/health/ready"
 
 `config --quiet` 只校验配置；不要把完整的 `docker compose config` 输出粘贴到日志或工单，因为展开后的配置包含秘密。
 
-`DATABASE_URL` 和 `REDIS_URL` 必须指向容器内可访问的地址；容器内的 `localhost` 指向容器自身，并非宿主机。在 Linux 上，`host.docker.internal` 默认可能不可用；如需使用，必须在 `docker-compose.external.yml` 中额外添加 `host-gateway` 映射，当前文件未提供该映射，因此不应依赖这个主机名。宿主机上的 PostgreSQL 和 Redis 必须监听容器可达的私网或 bridge 接口，不能只监听 `127.0.0.1`；同时应通过数据库访问控制和防火墙把来源限制到所需容器网络，绝不能为了连通性将服务暴露到公网。
+`DATABASE_URL` 和 `REDIS_URL` 必须指向容器内可访问的地址，其主机部分可填写对应服务的服务器私网地址或可解析的内部 DNS 名；容器内的 `localhost` 指向容器自身，并非宿主机。`host.docker.internal` 仅在平台支持时可用；对于同一台服务器上的 Docker Engine，只有显式添加 `host-gateway` 映射后才能使用相应别名，当前 `docker-compose.external.yml` 未自动配置该映射。宿主机上的 PostgreSQL 和 Redis 必须监听容器可达的私网或 bridge 接口，不能只监听 `127.0.0.1`；同时应通过数据库访问控制和防火墙把来源限制到所需容器网络，绝不能为了连通性将服务暴露到公网。
 
 外部数据库必须预先创建，且连接账号需要具备执行 Prisma 迁移的权限；Redis 的认证信息和 TLS 配置应写入完整的 `REDIS_URL`。
 
