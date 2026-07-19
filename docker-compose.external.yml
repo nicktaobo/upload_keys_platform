@@ -1,5 +1,6 @@
 services:
   migrate:
+    image: ${KEYHUB_API_IMAGE:-ghcr.io/nicktaobo/keyhub-api:latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -13,6 +14,7 @@ services:
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
   api:
+    image: ${KEYHUB_API_IMAGE:-ghcr.io/nicktaobo/keyhub-api:latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -35,6 +37,7 @@ services:
       timeout: 3s
       retries: 10
   worker:
+    image: ${KEYHUB_WORKER_IMAGE:-ghcr.io/nicktaobo/keyhub-worker:latest}
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
@@ -66,6 +69,7 @@ services:
       timeout: 3s
       retries: 5
   web:
+    image: ${KEYHUB_WEB_IMAGE:-ghcr.io/nicktaobo/keyhub-web:latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile

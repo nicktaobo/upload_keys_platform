@@ -67,10 +67,26 @@ set -a
 . ./.env.external
 set +a
 docker compose --env-file .env.external -f docker-compose.external.yml config --quiet
+```
+
+本地开发或从源码构建时执行：
+
+```bash
 docker compose --env-file .env.external -f docker-compose.external.yml up -d --build
 docker compose --env-file .env.external -f docker-compose.external.yml ps
 curl -fsS "http://localhost:${WEB_PORT:-8080}/health/ready"
 ```
+
+生产环境使用公开镜像部署时执行：
+
+```bash
+docker compose --env-file .env.external -f docker-compose.external.yml pull
+docker compose --env-file .env.external -f docker-compose.external.yml up -d --no-build
+docker compose --env-file .env.external -f docker-compose.external.yml ps
+curl -fsS "http://localhost:${WEB_PORT:-8080}/health/ready"
+```
+
+首次成功运行镜像发布 workflow 后，需要在 GitHub Packages 中分别把 `keyhub-api`、`keyhub-worker` 和 `keyhub-web` 的 Visibility 手动改为 Public；workflow 不会自动修改可见性。完成后拉取公开镜像无需 `docker login`。`latest` 始终跟随 `main`；生产环境需要固定版本或回滚时，可在 `.env.external` 中将 `KEYHUB_API_IMAGE`、`KEYHUB_WORKER_IMAGE` 和 `KEYHUB_WEB_IMAGE` 同时设为同一提交对应的 `sha-<commit>` 标签。
 
 `config --quiet` 只校验配置；不要把完整的 `docker compose config` 输出粘贴到日志或工单，因为展开后的配置包含秘密。
 
