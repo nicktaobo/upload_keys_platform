@@ -7,29 +7,30 @@ services:
       - /bin/sh
       - -c
       - pnpm --filter @keyhub/database prisma:migrate && pnpm --filter @keyhub/database seed
-    environment: &app_environment
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
       - REDIS_URL=${REDIS_URL:?REDIS_URL is required}
       - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required}
       - ENCRYPTION_KEY_BASE64=${ENCRYPTION_KEY_BASE64:?ENCRYPTION_KEY_BASE64 is required}
       - HMAC_KEY_BASE64=${HMAC_KEY_BASE64:?HMAC_KEY_BASE64 is required}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
-      - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL:-https://lingshu.101aix.net}
       - WEB_ORIGIN=${WEB_ORIGIN:-http://localhost:8080}
       - API_PORT=3000
-  api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    environment: *app_environment
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health/live"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health/ready"]
       interval: 10s
       timeout: 3s
       retries: 10
@@ -37,13 +38,28 @@ services:
     build:
       context: .
       dockerfile: apps/worker/Dockerfile
-    environment: *app_environment
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - REDIS_URL=${REDIS_URL:?REDIS_URL is required}
+      - ENCRYPTION_KEY_BASE64=${ENCRYPTION_KEY_BASE64:?ENCRYPTION_KEY_BASE64 is required}
+      - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL:-https://lingshu.101aix.net}
     depends_on:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "kill -0 1"]
+      test:
+        - CMD
+        - node
+        - --input-type=module
+        - -e
+        - >-
+          const { createRequire } = await import("node:module");
+          const { Redis } = createRequire("/app/apps/worker/package.json")("ioredis");
+          const redis = new Redis(process.env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1, connectTimeout: 1000, retryStrategy: () => null });
+          try { await redis.connect(); await redis.ping(); await redis.quit(); }
+          catch { redis.disconnect(); process.exit(1); }
       interval: 15s
       timeout: 3s
       retries: 5

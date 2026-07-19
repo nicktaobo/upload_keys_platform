@@ -16,7 +16,8 @@
     "@keyhub/domain": "workspace:*",
     "@keyhub/queue": "workspace:*",
     "@keyhub/upstream": "workspace:*",
-    "bullmq": "^5.63.1"
+    "bullmq": "^5.63.1",
+    "ioredis": "^5.8.1"
   },
   "devDependencies": {
     "tsx": "^4.20.0"

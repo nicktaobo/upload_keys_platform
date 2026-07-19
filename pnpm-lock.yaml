@@ -142,6 +142,9 @@ importers:
       bullmq:
         specifier: ^5.63.1
         version: 5.80.9
+      ioredis:
+        specifier: ^5.8.1
+        version: 5.11.1
     devDependencies:
       tsx:
         specifier: ^4.20.0
