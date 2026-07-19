@@ -54,19 +54,31 @@ curl -fsS http://localhost:8080/health/ready
 
 ## 使用现有 PostgreSQL 和 Redis
 
-`docker-compose.external.yml` 仅启动 `migrate`、`api`、`worker` 和 `web`，不会创建 PostgreSQL、Redis 或相关数据卷。请从专用示例文件复制一份独立环境配置，然后检查配置并启动：
+`docker-compose.external.yml` 仅启动 `migrate`、`api`、`worker` 和 `web`，不会创建 PostgreSQL、Redis 或相关数据卷。先从专用示例文件复制一份独立环境配置：
 
 ```bash
 cp .env.external.example .env.external
-docker compose --env-file .env.external -f docker-compose.external.yml config
-docker compose --env-file .env.external -f docker-compose.external.yml up -d --build
-docker compose --env-file .env.external -f docker-compose.external.yml ps
-curl -fsS http://localhost:8080/health/ready
 ```
 
-`DATABASE_URL` 和 `REDIS_URL` 必须指向容器内可访问的地址；容器内的 `localhost` 指向容器自身，并非宿主机。同一台服务器上的外部服务可根据平台和网络配置使用 `host.docker.internal`、映射为 `host-gateway` 的主机名，或服务器网络地址。外部数据库必须预先创建，且连接账号需要具备执行 Prisma 迁移的权限；Redis 的认证信息和 TLS 配置应写入完整的 `REDIS_URL`。
+编辑 `.env.external`，替换全部 `replace-with` 和 `example` 占位值后再继续。下面会把该文件加载到当前 shell，以便健康检查使用实际的 `WEB_PORT`；请确保值符合 POSIX shell 赋值语法，并对 URL 用户名或密码中的特殊字符进行 URL 编码。
 
-迁移或恢复已有数据时，必须保留并继续使用原来的 `ENCRYPTION_KEY_BASE64`，否则无法解密历史 Key。
+```bash
+set -a
+. ./.env.external
+set +a
+docker compose --env-file .env.external -f docker-compose.external.yml config --quiet
+docker compose --env-file .env.external -f docker-compose.external.yml up -d --build
+docker compose --env-file .env.external -f docker-compose.external.yml ps
+curl -fsS "http://localhost:${WEB_PORT:-8080}/health/ready"
+```
+
+`config --quiet` 只校验配置；不要把完整的 `docker compose config` 输出粘贴到日志或工单，因为展开后的配置包含秘密。
+
+`DATABASE_URL` 和 `REDIS_URL` 必须指向容器内可访问的地址；容器内的 `localhost` 指向容器自身，并非宿主机。在 Linux 上，`host.docker.internal` 默认可能不可用；如需使用，必须在 `docker-compose.external.yml` 中额外添加 `host-gateway` 映射，当前文件未提供该映射，因此不应依赖这个主机名。宿主机上的 PostgreSQL 和 Redis 必须监听容器可达的私网或 bridge 接口，不能只监听 `127.0.0.1`；同时应通过数据库访问控制和防火墙把来源限制到所需容器网络，绝不能为了连通性将服务暴露到公网。
+
+外部数据库必须预先创建，且连接账号需要具备执行 Prisma 迁移的权限；Redis 的认证信息和 TLS 配置应写入完整的 `REDIS_URL`。
+
+迁移或恢复已有数据时，必须同时保留并继续使用原来的 `ENCRYPTION_KEY_BASE64` 和 `HMAC_KEY_BASE64`：前者用于解密历史 Key，后者用于保持 Key 去重指纹稳定。
 
 ## 上游配置
 
