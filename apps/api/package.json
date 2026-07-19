@@ -16,6 +16,8 @@
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/session": "^11.1.1",
     "@keyhub/database": "workspace:*",
+    "@keyhub/domain": "workspace:*",
+    "@keyhub/queue": "workspace:*",
     "argon2": "^0.44.0",
     "fastify": "^5.6.1",
     "fastify-plugin": "^5.1.0",

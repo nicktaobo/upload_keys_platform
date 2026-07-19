@@ -4,10 +4,13 @@ import session from "@fastify/session";
 import Fastify, { type FastifyInstance } from "fastify";
 import { Redis } from "ioredis";
 
+import { createKeyHubQueues } from "@keyhub/queue";
+
 import { authPlugin } from "./plugins/auth.js";
 import { RedisSessionStore } from "./plugins/redis-session-store.js";
 import { adminUserRoutes } from "./routes/admin-users.js";
 import { authRoutes } from "./routes/auth.js";
+import { keyRoutes } from "./routes/keys.js";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({ logger: false });
@@ -15,6 +18,7 @@ export function buildApp(): FastifyInstance {
     lazyConnect: true,
     maxRetriesPerRequest: 1,
   });
+  const queues = createKeyHubQueues(process.env.REDIS_URL ?? "redis://localhost:6380");
 
   app.register(cookie);
   app.register(session, {
@@ -36,8 +40,10 @@ export function buildApp(): FastifyInstance {
   app.register(authPlugin);
   app.register(authRoutes, { prefix: "/api/auth" });
   app.register(adminUserRoutes, { prefix: "/api/admin/users" });
+  app.register(async (instance) => keyRoutes(instance, queues), { prefix: "/api/keys" });
 
   app.addHook("onClose", async () => {
+    await Promise.all([queues.submissionQueue.close(), queues.syncQueue.close()]);
     if (redis.status !== "end") await redis.quit();
   });
 
