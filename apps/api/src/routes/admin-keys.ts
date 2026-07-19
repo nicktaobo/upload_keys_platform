@@ -6,6 +6,10 @@ import type { createKeyHubQueues } from "@keyhub/queue";
 
 type KeyHubQueues = ReturnType<typeof createKeyHubQueues>;
 const idParamsSchema = z.object({ id: z.string().min(1) });
+const listQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
 
 export async function adminKeyRoutes(
   app: FastifyInstance,
@@ -13,7 +17,9 @@ export async function adminKeyRoutes(
 ): Promise<void> {
   app.addHook("preHandler", app.requireAdmin);
 
-  app.get("/", async () => {
+  app.get("/", async (request, reply) => {
+    const query = listQuerySchema.safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ message: "查询参数无效" });
     const [items, total] = await Promise.all([
       prisma.keyRecord.findMany({
         select: {
@@ -32,12 +38,13 @@ export async function adminKeyRoutes(
           createdAt: true,
           owner: { select: { id: true, username: true } },
         },
-        orderBy: { createdAt: "desc" },
-        take: 100,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (query.data.page - 1) * query.data.pageSize,
+        take: query.data.pageSize,
       }),
       prisma.keyRecord.count(),
     ]);
-    return { items, total };
+    return { items, total, page: query.data.page, pageSize: query.data.pageSize };
   });
 
   app.post(
@@ -48,10 +55,16 @@ export async function adminKeyRoutes(
       if (!params.success) return reply.code(404).send({ message: "记录不存在" });
       const record = await prisma.keyRecord.findUnique({ where: { id: params.data.id } });
       if (!record) return reply.code(404).send({ message: "记录不存在" });
-      await prisma.keyRecord.update({
-        where: { id: record.id },
+      const retry = await prisma.keyRecord.updateMany({
+        where: {
+          id: record.id,
+          status: { in: ["TEST_FAILED", "UPSTREAM_ERROR"] },
+        },
         data: { status: "RETRYING", failureCode: null, failureMessage: null },
       });
+      if (retry.count !== 1) {
+        return reply.code(409).send({ message: "当前状态不可重试" });
+      }
       await queues.submissionQueue.add(
         "submit-key",
         { keyRecordId: record.id },

@@ -28,7 +28,10 @@ describe("processSyncKeys", () => {
       nextCursor: null,
     });
 
-    const result = await processSyncKeys({}, { client: { getItems }, channelId: "channel-1" });
+    const result = await processSyncKeys(
+      {},
+      { client: { login: vi.fn(), getItems }, channelId: "channel-1" },
+    );
 
     expect(result.updated).toBe(1);
     const updated = await prisma.keyRecord.findUniqueOrThrow({ where: { id: record.id } });
@@ -36,6 +39,27 @@ describe("processSyncKeys", () => {
     expect(updated.usageSiteCount).toBe(2);
     expect(updated.accessStatus).toBe("通过");
     expect(await prisma.keyRecord.count()).toBe(1);
+  });
+
+  it("logs in once before reading pages with a newly created client", async () => {
+    let authenticated = false;
+    const login = vi.fn().mockImplementation(async () => {
+      authenticated = true;
+    });
+    const getItems = vi.fn().mockImplementation(async () => {
+      if (!authenticated) throw new Error("anonymous request");
+      return { items: [], nextCursor: null };
+    });
+
+    await processSyncKeys(
+      {},
+      { client: { login, getItems }, channelId: "channel-1" },
+    );
+
+    expect(login).toHaveBeenCalledOnce();
+    expect(login.mock.invocationCallOrder[0]).toBeLessThan(
+      getItems.mock.invocationCallOrder[0]!,
+    );
   });
 
   it("limits an owner refresh to that owner's mapped records", async () => {
@@ -51,7 +75,7 @@ describe("processSyncKeys", () => {
 
     const result = await processSyncKeys(
       { ownerId: first.ownerId },
-      { client: { getItems }, channelId: "channel-1" },
+      { client: { login: vi.fn(), getItems }, channelId: "channel-1" },
     );
 
     expect(result.updated).toBe(1);

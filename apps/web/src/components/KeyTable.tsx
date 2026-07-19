@@ -1,6 +1,6 @@
 import { Button, Table, Tag, Tooltip, Typography } from "antd";
 import { RotateCcw } from "lucide-react";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { KeyRecord } from "../api/client";
 
 const statusColor: Record<KeyRecord["status"], string> = {
@@ -9,8 +9,9 @@ const statusColor: Record<KeyRecord["status"], string> = {
 const label = (value: string) => value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 const date = (value: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
 
-export function KeyTable({ records, admin = false, onReveal, onRetry }: {
+export function KeyTable({ records, pagination, admin = false, onReveal, onRetry }: {
   records: KeyRecord[];
+  pagination: TablePaginationConfig;
   admin?: boolean;
   onReveal?: (record: KeyRecord) => void;
   onRetry?: (record: KeyRecord) => void;
@@ -39,5 +40,5 @@ export function KeyTable({ records, admin = false, onReveal, onRetry }: {
         : null,
     }] : []),
   ];
-  return <Table rowKey="id" size="small" columns={columns} dataSource={records} pagination={{ pageSize: 20, showSizeChanger: false }} scroll={{ x: isAdmin ? 1350 : 1050 }} />;
+  return <Table rowKey="id" size="small" columns={columns} dataSource={records} pagination={pagination} scroll={{ x: isAdmin ? 1350 : 1050 }} />;
 }

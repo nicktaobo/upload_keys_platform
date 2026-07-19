@@ -56,6 +56,8 @@ curl -fsS http://localhost:8080/health/ready
 
 使用管理员账号登录 KeyHub，进入 `Upstream` 页面填写获授权的百一灵枢供应商账号和密码。凭据加密后保存，Worker 会登录并自动选择 `ModelBoxs-Claude-按量（Claude 官方）` 渠道。若上游要求验证码，连接状态会变为阻塞，自动任务不会绕过验证码。
 
+上游没有公开接口文档，当前适配器契约需要在上线前使用获授权账号做一次受控抓包校准。路径、字段、Cookie/CSRF 假设和确认清单见 `docs/upstream-contract.md`；抓包文件、真实 Cookie 和完整 Key 不得提交到仓库。
+
 ## 验证
 
 ```bash
@@ -70,6 +72,23 @@ pnpm test
 pnpm build
 docker compose config
 ```
+
+端到端测试使用 Playwright 自带的 Chromium，并要求完整 Compose 栈已经在 `http://localhost:8080` 运行。测试进程还会从宿主机直接访问 PostgreSQL；同时必须加载与 Compose 相同的加密配置，否则无法解密测试创建的 Key：
+
+```bash
+docker compose up -d --build
+docker compose ps
+set -a
+. ./.env
+set +a
+export DATABASE_URL="postgresql://keyhub:${POSTGRES_PASSWORD:-keyhub}@localhost:${POSTGRES_PORT:-5433}/keyhub"
+export REDIS_URL="redis://localhost:${REDIS_PORT:-6380}"
+export E2E_BASE_URL="http://localhost:${WEB_PORT:-8080}"
+pnpm exec playwright install chromium
+pnpm test:e2e
+```
+
+当前 E2E 覆盖普通用户之间的 Key 列表与 reveal 隔离，以及所有者点击脱敏 Key 查看完整值。真实上游提交、状态和用量同步仍需使用获授权账号联调，不在本地 E2E 覆盖范围内。
 
 ## 备份
 

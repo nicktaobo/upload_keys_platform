@@ -27,7 +27,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
+    "@keyhub/database": "workspace:*",
+    "@keyhub/domain": "workspace:*",
+    "@playwright/test": "^1.55.0",
     "@types/node": "^22.15.0",
+    "argon2": "^0.44.0",
     "eslint": "^9.31.0",
     "globals": "^16.3.0",
     "typescript": "^5.8.3",

@@ -61,7 +61,7 @@ export async function keyRoutes(
           failureMessage: true,
           createdAt: true,
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip: (query.data.page - 1) * query.data.pageSize,
         take: query.data.pageSize,
       }),
@@ -107,7 +107,7 @@ export async function keyRoutes(
 
       try {
         const created = await createKeyRecords(request.currentUser!.id, rows, secrets);
-        await Promise.all(
+        const enqueueResults = await Promise.allSettled(
           created.map((record) =>
             queues.submissionQueue.add(
               "submit-key",
@@ -116,6 +116,20 @@ export async function keyRoutes(
             ),
           ),
         );
+        const failedRecordIds = enqueueResults.flatMap((result, index) =>
+          result.status === "rejected" && created[index] ? [created[index].id] : [],
+        );
+        if (failedRecordIds.length > 0) {
+          await prisma.keyRecord.updateMany({
+            where: { id: { in: failedRecordIds } },
+            data: {
+              status: "UPSTREAM_ERROR",
+              failureCode: "SUBMISSION_QUEUE_UNAVAILABLE",
+              failureMessage: "提交任务未能加入队列，请由管理员重试",
+            },
+          });
+          return reply.code(503).send({ message: "提交任务暂时不可用，请联系管理员重试" });
+        }
         return reply.code(202).send({ created });
       } catch (error) {
         if (error instanceof DuplicateKeyError) {
@@ -144,13 +158,23 @@ export async function keyRoutes(
 
   app.post(
     "/refresh",
-    { preHandler: app.verifyCsrf },
+    {
+      preHandler: app.verifyCsrf,
+      config: {
+        rateLimit: {
+          max: 1,
+          timeWindow: "1 minute",
+          groupId: "manual-refresh",
+          keyGenerator: (request) => request.session.userId ?? request.ip,
+        },
+      },
+    },
     async (request, reply) => {
       const ownerId = request.currentUser!.id;
       await queues.syncQueue.add(
         "sync-owner",
         { ownerId, requestedBy: ownerId },
-        { jobId: `sync-owner-${ownerId}`, removeOnComplete: 50 },
+        { removeOnComplete: 50 },
       );
       return reply.code(202).send({ message: "同步任务已提交" });
     },

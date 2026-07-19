@@ -64,7 +64,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`/api${path}`, {
     credentials: "include",
     ...init,
-    headers: { "Content-Type": "application/json", ...(method !== "GET" && csrfToken ? { "X-CSRF-Token": csrfToken } : {}), ...init.headers },
+    headers: { ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}), ...(method !== "GET" && csrfToken ? { "X-CSRF-Token": csrfToken } : {}), ...init.headers },
   });
   const payload = (await response.json().catch(() => ({}))) as {
     message?: string;
@@ -93,9 +93,11 @@ export const api = {
       latestSampleAt: result.latestSampleAt,
     };
   },
-  keys: async (status?: KeyStatus) => {
+  keys: async (status?: KeyStatus, page = 1, pageSize = 20) => {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (status) query.set("status", status.toUpperCase());
     const result = await request<{ items: RawKeyRecord[]; total: number }>(
-      `/keys${status ? `?status=${status.toUpperCase()}` : ""}`,
+      `/keys?${query.toString()}`,
     );
     return { ...result, items: result.items.map(normalizeKey) };
   },
@@ -133,8 +135,9 @@ export const api = {
   },
   setUserStatus: (id: string, isActive: boolean) => post<void>(`/admin/users/${id}/status`, { isActive }),
   resetPassword: (id: string, password: string) => post<void>(`/admin/users/${id}/reset-password`, { password }),
-  adminKeys: async () => {
-    const result = await request<{ items: RawKeyRecord[]; total: number }>("/admin/keys");
+  adminKeys: async (page = 1, pageSize = 20) => {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    const result = await request<{ items: RawKeyRecord[]; total: number }>(`/admin/keys?${query.toString()}`);
     return { ...result, items: result.items.map(normalizeKey) };
   },
   retryKey: (id: string) => post<{ message: string }>(`/admin/keys/${id}/retry`),

@@ -104,6 +104,50 @@ describe("KeyHub application", () => {
     await actor.click(screen.getByRole("button", { name: key.maskedKey }));
     expect(await screen.findByRole("dialog", { name: "Full Key" })).toHaveTextContent("sk-ant-api03-full-secret");
     expect(writeText).toHaveBeenCalledWith("sk-ant-api03-full-secret");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/keys/k1/reveal",
+      expect.objectContaining({
+        body: undefined,
+        headers: expect.not.objectContaining({ "Content-Type": "application/json" }),
+      }),
+    );
+  });
+
+  it("requests the selected page of the current user's Keys", async () => {
+    const fetchMock = installApi([
+      { path: "/api/auth/me", body: { user: apiUser, csrfToken: "csrf-user" } },
+      { path: "/api/keys/summary", body: { submittedCount: 21, healthyCount: 0, usageUsd: 0, latestSampleAt: null } },
+      { path: "/api/keys", body: { items: [key], total: 21, page: 1, pageSize: 20 } },
+    ]);
+    render(<App />);
+    const actor = userEvent.setup();
+
+    expect(await screen.findByRole("heading", { name: "My Keys" })).toBeVisible();
+    await actor.click(await screen.findByTitle("2"));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/keys?page=2&pageSize=20")).toBe(true),
+    );
+  });
+
+  it("still reveals a Key when clipboard access is blocked", async () => {
+    installApi([
+      { path: "/api/auth/me", body: { user: apiUser, csrfToken: "csrf-user" } },
+      { path: "/api/keys/summary", body: { submittedCount: 1, healthyCount: 0, usageUsd: 0, latestSampleAt: null } },
+      { path: "/api/keys", body: { items: [key], total: 1 } },
+      { method: "POST", path: "/api/keys/k1/reveal", body: { apiKey: "sk-ant-api03-full-secret" } },
+    ]);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error("permission denied")) },
+    });
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: key.maskedKey }));
+
+    expect(await screen.findByRole("dialog", { name: "Full Key" })).toHaveTextContent("sk-ant-api03-full-secret");
+    expect(await screen.findByText("Key displayed, but clipboard access was blocked")).toBeVisible();
+    expect(screen.queryByText("permission denied")).not.toBeInTheDocument();
   });
 
   it("supports single and batch submission with per-row errors and a fixed channel", async () => {
@@ -202,5 +246,22 @@ describe("KeyHub application", () => {
     expect(await screen.findByText("Credentials saved")).toBeVisible();
     await actor.click(screen.getByRole("button", { name: "Sync now" }));
     expect(await screen.findByText("Sync queued")).toBeVisible();
+  });
+
+  it("requests the selected page of administrator Keys", async () => {
+    const fetchMock = installApi([
+      { path: "/api/auth/me", body: { user: apiAdmin, csrfToken: "csrf-admin" } },
+      { path: "/api/admin/keys", body: { items: [{ ...key, owner: { id: "u1", username: "riley" } }], total: 21, page: 1, pageSize: 20 } },
+    ]);
+    window.history.replaceState({}, "", "/admin/keys");
+    render(<App />);
+    const actor = userEvent.setup();
+
+    expect(await screen.findByRole("heading", { name: "All Keys" })).toBeVisible();
+    await actor.click(await screen.findByTitle("2"));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/admin/keys?page=2&pageSize=20")).toBe(true),
+    );
   });
 });

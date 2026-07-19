@@ -1,6 +1,7 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { prisma } from "@keyhub/database";
+import { createKeyHubQueues } from "@keyhub/queue";
 
 import { buildApp } from "../app.js";
 import { createKeyRecords, loadKeySecrets } from "../services/keys.js";
@@ -52,6 +53,85 @@ describe("administrator operations", () => {
     expect(response.body).not.toContain("encryptedKey");
   });
 
+  it("paginates administrator Key records", async () => {
+    const admin = await createUser({ username: "page-admin", password: "password-123", role: "ADMIN" });
+    const alice = await createUser({ username: "page-alice", password: "password-123" });
+    const session = await login(app, admin.username, "password-123");
+    const records = await createKeyRecords(
+      alice.id,
+      [
+        { apiKey: "sk-ant-api03-admin-page-A1AA", warrantyHours: 24 },
+        { apiKey: "sk-ant-api03-admin-page-B2BB", warrantyHours: 24 },
+        { apiKey: "sk-ant-api03-admin-page-C3CC", warrantyHours: 24 },
+      ],
+      loadKeySecrets(),
+    );
+    await Promise.all(
+      records.map((record, index) =>
+        prisma.keyRecord.update({
+          where: { id: record.id },
+          data: { createdAt: new Date(Date.UTC(2026, 0, index + 1)) },
+        }),
+      ),
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/admin/keys?page=2&pageSize=1",
+      headers: { cookie: session.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      items: [{ id: records[1]!.id }],
+      total: 3,
+      page: 2,
+      pageSize: 1,
+    });
+  });
+
+  it("orders administrator records with equal creation times by id descending", async () => {
+    const admin = await createUser({ username: "stable-admin", password: "password-123", role: "ADMIN" });
+    const alice = await createUser({ username: "stable-owner", password: "password-123" });
+    const session = await login(app, admin.username, "password-123");
+    const records = await createKeyRecords(
+      alice.id,
+      [
+        { apiKey: "sk-ant-api03-admin-stable-A1AA", warrantyHours: 24 },
+        { apiKey: "sk-ant-api03-admin-stable-B2BB", warrantyHours: 24 },
+        { apiKey: "sk-ant-api03-admin-stable-C3CC", warrantyHours: 24 },
+      ],
+      loadKeySecrets(),
+    );
+    const createdAt = new Date("2026-07-19T12:00:00.000Z");
+    await prisma.keyRecord.updateMany({
+      where: { id: { in: records.map(({ id }) => id) } },
+      data: { createdAt },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/admin/keys?pageSize=3",
+      headers: { cookie: session.cookie },
+    });
+
+    const expectedIds = records.map(({ id }) => id).sort((left, right) => right.localeCompare(left));
+    expect(response.json<{ items: Array<{ id: string }> }>().items.map(({ id }) => id)).toEqual(expectedIds);
+  });
+
+  it("rejects administrator Key page sizes above 100", async () => {
+    const admin = await createUser({ username: "page-limit-admin", password: "password-123", role: "ADMIN" });
+    const session = await login(app, admin.username, "password-123");
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/admin/keys?pageSize=101",
+      headers: { cookie: session.cookie },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
   it("denies ordinary users and queues an administrator retry", async () => {
     const admin = await createUser({ username: "ops-admin", password: "password-123", role: "ADMIN" });
     const alice = await createUser({ username: "ops-alice", password: "password-123" });
@@ -84,6 +164,42 @@ describe("administrator operations", () => {
     await expect(prisma.keyRecord.findUniqueOrThrow({ where: { id: record!.id } })).resolves.toMatchObject({
       status: "RETRYING",
     });
+  });
+
+  it("does not retry a Key that has already been submitted", async () => {
+    const admin = await createUser({ username: "submitted-admin", password: "password-123", role: "ADMIN" });
+    const alice = await createUser({ username: "submitted-alice", password: "password-123" });
+    const session = await login(app, admin.username, "password-123");
+    const [record] = await createKeyRecords(
+      alice.id,
+      [{ apiKey: "sk-ant-api03-submitted-X7AA", warrantyHours: 24 }],
+      loadKeySecrets(),
+    );
+    await prisma.keyRecord.update({
+      where: { id: record!.id },
+      data: { status: "SUBMITTED", upstreamItemId: "item-submitted" },
+    });
+    const testQueues = createKeyHubQueues(process.env.REDIS_URL ?? "redis://localhost:6380");
+    const add = vi.spyOn(Object.getPrototypeOf(testQueues.submissionQueue), "add");
+
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: `/api/admin/keys/${record!.id}/retry`,
+        headers: { cookie: session.cookie, "x-csrf-token": session.csrfToken },
+      });
+
+      expect(response.statusCode).toBe(409);
+      expect(response.json()).toEqual({ message: "当前状态不可重试" });
+      expect(add).not.toHaveBeenCalled();
+      await expect(prisma.keyRecord.findUniqueOrThrow({ where: { id: record!.id } })).resolves.toMatchObject({
+        status: "SUBMITTED",
+        upstreamItemId: "item-submitted",
+      });
+    } finally {
+      add.mockRestore();
+      await Promise.all([testQueues.submissionQueue.close(), testQueues.syncQueue.close()]);
+    }
   });
 
   it("encrypts upstream credentials and queues connection and sync jobs", async () => {

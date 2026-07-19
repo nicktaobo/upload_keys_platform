@@ -42,11 +42,18 @@ const submissionWorker = new Worker<SubmitKeyJob>(
   SUBMISSION_QUEUE,
   async (job) => {
     const runtime = await runtimeClient();
-    return processSubmitKey(job.data, {
-      client: runtime.client,
-      encryptionKey,
-      channelId: runtime.channelId,
-    });
+    return processSubmitKey(
+      {
+        ...job.data,
+        attemptsMade: job.attemptsMade,
+        maxAttempts: job.opts.attempts,
+      },
+      {
+        client: runtime.client,
+        encryptionKey,
+        channelId: runtime.channelId,
+      },
+    );
   },
   { connection, concurrency: 3 },
 );
