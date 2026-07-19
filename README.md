@@ -82,7 +82,9 @@ curl -fsS "http://localhost:${WEB_PORT:-8080}/health/ready"
 
 ## 上游配置
 
-使用管理员账号登录 KeyHub，进入 `Upstream` 页面填写获授权的百一灵枢供应商账号和密码。凭据加密后保存，Worker 会登录并自动选择 `ModelBoxs-Claude-按量（Claude 官方）` 渠道。若上游要求验证码，连接状态会变为阻塞，自动任务不会绕过验证码。
+上游账号有两种配置方式：在 `.env.external` 中同时设置 `UPSTREAM_ACCOUNT` 和 `UPSTREAM_PASSWORD`，或者使用管理员账号登录 KeyHub 后在 `Upstream` 页面填写。环境变量存在时优先使用；否则使用 PostgreSQL 中加密保存的后台配置。不要只设置其中一个变量。
+
+Worker 启动时会自动连接当前配置的上游账号，并根据 `Claude` 渠道的官方来源标识选择渠道。使用环境变量账号时，启动阶段会先清除上一次账号留下的渠道 ID，避免跨账号复用。连接成功后会重新入队此前仍为 `PENDING`，以及因渠道不可用而失败的 Key。若上游要求验证码，连接状态会变为阻塞，自动任务不会绕过验证码。
 
 上游没有公开接口文档，当前适配器契约需要在上线前使用获授权账号做一次受控抓包校准。路径、字段、Cookie/CSRF 假设和确认清单见 `docs/upstream-contract.md`；抓包文件、真实 Cookie 和完整 Key 不得提交到仓库。
 

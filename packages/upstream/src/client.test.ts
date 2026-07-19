@@ -76,7 +76,16 @@ describe("SupplierPortalClient", () => {
         });
         return;
       }
-      json(response, 200, { success: true, itemIds: ["item-1"] });
+      const submittedRow = (body as { rows: Array<{ row_id: string }> }).rows[0];
+      json(response, 200, {
+        results: [
+          {
+            row_id: submittedRow?.row_id,
+            status: "submitted",
+            item: { id: "item-1" },
+          },
+        ],
+      });
     });
     const client = new SupplierPortalClient({
       baseUrl,
@@ -106,12 +115,118 @@ describe("SupplierPortalClient", () => {
         csrf: "csrf-secret",
         body: {
           rows: [
-            { apiKey: "sk-ant-api03-super-secret", warrantyHours: 24 },
+            {
+              row_id: expect.stringMatching(
+                /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+              ),
+              official_credential: {
+                api_key: "sk-ant-api03-super-secret",
+              },
+              quota_unlimited: true,
+              consumption_time_follow_parent: false,
+              consumption_time_hours: 24,
+            },
           ],
         },
       },
     ]);
     expect(requests[1]?.cookie).toContain("csrftoken=csrf-secret");
+  });
+
+  it("maps multi-row partial failures and numeric item IDs", async () => {
+    let submittedRows: Array<Record<string, unknown>> = [];
+    const baseUrl = await startServer((request, response, body) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      submittedRows = (body as { rows: Array<Record<string, unknown>> }).rows;
+      json(response, 200, {
+        results: [
+          {
+            row_id: submittedRows[0]?.row_id,
+            status: "submitted",
+            item: { id: 42, status: "pending" },
+          },
+          {
+            row_id: submittedRows[1]?.row_id,
+            status: "failed",
+            message: "invalid credential",
+          },
+        ],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.submitKeys("7", [
+      { apiKey: "key-one", warrantyHours: 24 },
+      { apiKey: "key-two", warrantyHours: 48 },
+    ])).resolves.toEqual({ success: false, itemIds: ["42"] });
+
+    expect(submittedRows).toHaveLength(2);
+    expect(submittedRows[0]?.row_id).not.toBe(submittedRows[1]?.row_id);
+    expect(submittedRows.map((row) => row.consumption_time_hours)).toEqual([
+      24,
+      48,
+    ]);
+  });
+
+  it("rejects submission results that do not match the requested row IDs", async () => {
+    const baseUrl = await startServer((request, response) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      json(response, 200, {
+        results: [
+          { row_id: "unrelated-row", status: "submitted", item: { id: "wrong-item" } },
+        ],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.submitKeys("7", [
+      { apiKey: "key-one", warrantyHours: 24 },
+    ])).rejects.toBeInstanceOf(UpstreamContractError);
+  });
+
+  it("rejects submitted rows that omit the upstream item ID", async () => {
+    const baseUrl = await startServer((request, response, body) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      const submittedRow = (body as { rows: Array<{ row_id: string }> }).rows[0];
+      json(response, 200, {
+        results: [{ row_id: submittedRow?.row_id, status: "submitted" }],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.submitKeys("7", [
+      { apiKey: "key-one", warrantyHours: 24 },
+    ])).rejects.toBeInstanceOf(UpstreamContractError);
   });
 
   it("calls every supplier portal read path and maps stable responses", async () => {
@@ -163,6 +278,107 @@ describe("SupplierPortalClient", () => {
       "/api/v1/supplier-portal/channels/7/items/?cursor=cursor+%2F+1",
       "/api/v1/supplier-portal/channels/7/batch-summary/",
       "/api/v1/supplier-portal/channels/7/batch-notes/",
+    ]);
+  });
+
+  it("maps the real supplier item envelope and usage fields", async () => {
+    const baseUrl = await startServer((request, response) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      json(response, 200, {
+        items: [
+          {
+            id: 51,
+            access_test_status: "success",
+            usage_amount: "21.510000",
+            usage_site_count: 2,
+            usage_sampled_at: "2026-07-19T14:21:48.000Z",
+          },
+        ],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.getItems("7")).resolves.toEqual({
+      items: [
+        {
+          id: "51",
+          status: "通过",
+          usageUsd: 21.51,
+          usageSiteCount: 2,
+          sampledAt: "2026-07-19T14:21:48.000Z",
+        },
+      ],
+      nextCursor: null,
+    });
+  });
+
+  it("rejects a usage amount that overflows to infinity", async () => {
+    const baseUrl = await startServer((request, response) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      json(response, 200, {
+        items: [{ id: 51, usage_amount: "9".repeat(10_000) }],
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.getItems("7")).rejects.toBeInstanceOf(
+      UpstreamContractError,
+    );
+  });
+
+  it("maps channels from the supplier-scoped channel envelope", async () => {
+    const baseUrl = await startServer((request, response) => {
+      if (request.url === "/api/v1/auth/login") {
+        json(response, 200, { success: true }, {
+          "set-cookie": ["sessionid=s1; Path=/", "csrftoken=c1; Path=/"],
+        });
+        return;
+      }
+      json(response, 200, {
+        supplier_id: 123,
+        channels: [
+          {
+            id: 7,
+            name: "ModelBoxs-Claude-按量",
+            source_type: "official",
+          },
+        ],
+        empty_reason: null,
+      });
+    });
+    const client = new SupplierPortalClient({
+      baseUrl,
+      username: "supplier",
+      password: "password",
+    });
+    await client.login();
+
+    await expect(client.getChannels()).resolves.toEqual([
+      {
+        id: "7",
+        name: "ModelBoxs-Claude-按量",
+        sourceType: "official",
+      },
     ]);
   });
 

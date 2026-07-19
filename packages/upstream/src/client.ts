@@ -7,6 +7,7 @@ import type {
   UpstreamBatchSummary,
   UpstreamChannel,
   UpstreamItemsPage,
+  UpstreamSubmissionResponse,
   UpstreamSubmissionResult,
 } from "./contracts.js";
 import {
@@ -80,15 +81,22 @@ export class SupplierPortalClient {
     channelId: string,
     rows: SubmitKeyRow[],
   ): Promise<UpstreamSubmissionResult> {
-    return this.#request<UpstreamSubmissionResult>(
+    const requestRows = rows.map(({ apiKey, warrantyHours }) => ({
+      row_id: crypto.randomUUID(),
+      official_credential: { api_key: apiKey },
+      quota_unlimited: true,
+      consumption_time_follow_parent: false,
+      consumption_time_hours: warrantyHours,
+    }));
+    return this.#request<UpstreamSubmissionResponse>(
       `/supplier-portal/channels/${encodeURIComponent(channelId)}/items/submit/`,
       {
         method: "POST",
-        body: { rows },
+        body: { rows: requestRows },
         contract: "submission",
         schema: contracts.submission,
       },
-    );
+    ).then((response) => mapSubmissionResponse(requestRows, response));
   }
 
   getItems(channelId: string, cursor?: string): Promise<UpstreamItemsPage> {
@@ -193,6 +201,41 @@ export class SupplierPortalClient {
   #csrfToken(): string | undefined {
     return this.#cookies.get("csrftoken");
   }
+}
+
+function mapSubmissionResponse(
+  requestRows: Array<{ row_id: string }>,
+  response: UpstreamSubmissionResponse,
+): UpstreamSubmissionResult {
+  const requestedIds = new Set(requestRows.map(({ row_id }) => row_id));
+  const byRowId = new Map(
+    response.results.map((result) => [result.row_id, result] as const),
+  );
+  const responseIsCorrelated = response.results.length === requestRows.length
+    && byRowId.size === response.results.length
+    && response.results.every(({ row_id }) => requestedIds.has(row_id));
+  if (!responseIsCorrelated) {
+    throw new UpstreamContractError("submission row correlation");
+  }
+  if (response.results.some(
+    ({ status, item }) => status === "submitted" && item === undefined,
+  )) {
+    throw new UpstreamContractError("submission item identity");
+  }
+
+  const itemIds = requestRows.flatMap(({ row_id }) => {
+    const result = byRowId.get(row_id);
+    return result?.status === "submitted" && result.item
+      ? [result.item.id]
+      : [];
+  });
+  return {
+    success: requestRows.every(({ row_id }) => {
+      const result = byRowId.get(row_id);
+      return result?.status === "submitted" && result.item !== undefined;
+    }),
+    itemIds,
+  };
 }
 
 async function readJson(response: Response): Promise<unknown> {

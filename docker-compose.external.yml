@@ -44,6 +44,8 @@ services:
       - REDIS_URL=${REDIS_URL:?REDIS_URL is required}
       - ENCRYPTION_KEY_BASE64=${ENCRYPTION_KEY_BASE64:?ENCRYPTION_KEY_BASE64 is required}
       - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL:-https://lingshu.101aix.net}
+      - UPSTREAM_ACCOUNT=${UPSTREAM_ACCOUNT:-}
+      - UPSTREAM_PASSWORD=${UPSTREAM_PASSWORD:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

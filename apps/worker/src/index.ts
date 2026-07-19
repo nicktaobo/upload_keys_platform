@@ -12,10 +12,16 @@ import { SupplierPortalClient } from "@keyhub/upstream";
 
 import {
   loadUpstreamCredentials,
+  prepareEnvironmentConnection,
   processConnectUpstream,
 } from "./processors/connect-upstream.js";
 import { processSubmitKey } from "./processors/submit-key.js";
 import { processSyncKeys } from "./processors/sync-keys.js";
+import {
+  createRecoveryEnqueuer,
+  inspectEnvironmentCredentials,
+  scheduleStartupConnection,
+} from "./startup.js";
 
 const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
 const baseUrl = process.env.UPSTREAM_BASE_URL ?? "https://lingshu.101aix.net";
@@ -23,11 +29,13 @@ const encryptionKey = Buffer.from(process.env.ENCRYPTION_KEY_BASE64 ?? "", "base
 if (encryptionKey.length !== 32) {
   throw new Error("ENCRYPTION_KEY_BASE64 must decode to 32 bytes");
 }
+inspectEnvironmentCredentials(process.env);
+await prepareEnvironmentConnection(process.env);
 const connection = redisConnectionFromUrl(redisUrl);
 const queues = createKeyHubQueues(redisUrl);
 
 async function runtimeClient() {
-  const credentials = await loadUpstreamCredentials(encryptionKey);
+  const credentials = await loadUpstreamCredentials(encryptionKey, process.env);
   return {
     client: new SupplierPortalClient({
       baseUrl,
@@ -66,6 +74,8 @@ const syncWorker = new Worker<SyncKeysJob>(
         encryptionKey,
         baseUrl,
         factory: (options) => new SupplierPortalClient(options),
+        environment: process.env,
+        enqueueRecoverable: createRecoveryEnqueuer(queues.submissionQueue),
       });
     }
     const runtime = await runtimeClient();
@@ -83,6 +93,7 @@ await queues.syncQueue.upsertJobScheduler(
   { every: 5 * 60 * 1000 },
   { name: "sync-all", data: {} },
 );
+await scheduleStartupConnection(queues.syncQueue, process.env);
 
 async function shutdown(): Promise<void> {
   await Promise.all([
