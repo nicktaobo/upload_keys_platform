@@ -21,6 +21,7 @@
     "clean": "pnpm -r clean",
     "dev": "pnpm -r --parallel dev",
     "lint": "eslint .",
+    "pretest": "pnpm --filter @keyhub/database prisma:generate && pnpm --filter @keyhub/domain build && pnpm --filter @keyhub/database build && pnpm --filter @keyhub/queue build && pnpm --filter @keyhub/upstream build",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "pnpm -r typecheck"
