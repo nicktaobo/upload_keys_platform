@@ -7,6 +7,7 @@ import { prisma } from "@keyhub/database";
 const createUserSchema = z.object({
   username: z.string().trim().min(2).max(80),
   password: z.string().min(12).max(256),
+  role: z.enum(["ADMIN", "USER"]).default("USER"),
 });
 const passwordSchema = z.object({ password: z.string().min(12).max(256) });
 const statusSchema = z.object({ isActive: z.boolean() });
@@ -38,6 +39,7 @@ export async function adminUserRoutes(app: FastifyInstance): Promise<void> {
         data: {
           username: parsed.data.username,
           passwordHash: await hash(parsed.data.password, { type: 2 }),
+          role: parsed.data.role,
         },
         select: publicUserSelect,
       });

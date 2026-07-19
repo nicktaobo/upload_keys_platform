@@ -36,6 +36,19 @@ describe("administrator user management", () => {
     expect(created.statusCode).toBe(201);
     expect(created.json()).toMatchObject({ username: "bob", role: "USER", isActive: true });
     expect(created.body).not.toContain("passwordHash");
+
+    const operator = await app.inject({
+      method: "POST",
+      url: "/api/admin/users",
+      headers: { cookie: admin.cookie, "x-csrf-token": admin.csrfToken },
+      payload: {
+        username: "operator",
+        password: "operator-password-123",
+        role: "ADMIN",
+      },
+    });
+    expect(operator.statusCode).toBe(201);
+    expect(operator.json()).toMatchObject({ username: "operator", role: "ADMIN" });
   });
 
   it("invalidates existing sessions when an administrator resets a password", async () => {
