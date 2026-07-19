@@ -1,0 +1,24 @@
+{
+  "name": "@keyhub/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist coverage",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@keyhub/database": "workspace:*",
+    "@keyhub/domain": "workspace:*",
+    "@keyhub/queue": "workspace:*",
+    "@keyhub/upstream": "workspace:*",
+    "bullmq": "^5.63.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.0"
+  }
+}
