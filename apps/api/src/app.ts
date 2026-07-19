@@ -8,8 +8,11 @@ import { createKeyHubQueues } from "@keyhub/queue";
 
 import { authPlugin } from "./plugins/auth.js";
 import { RedisSessionStore } from "./plugins/redis-session-store.js";
+import { adminKeyRoutes } from "./routes/admin-keys.js";
+import { adminUpstreamRoutes } from "./routes/admin-upstream.js";
 import { adminUserRoutes } from "./routes/admin-users.js";
 import { authRoutes } from "./routes/auth.js";
+import { healthRoutes } from "./routes/health.js";
 import { keyRoutes } from "./routes/keys.js";
 
 export function buildApp(): FastifyInstance {
@@ -40,7 +43,14 @@ export function buildApp(): FastifyInstance {
   app.register(authPlugin);
   app.register(authRoutes, { prefix: "/api/auth" });
   app.register(adminUserRoutes, { prefix: "/api/admin/users" });
+  app.register(async (instance) => adminKeyRoutes(instance, queues), {
+    prefix: "/api/admin/keys",
+  });
+  app.register(async (instance) => adminUpstreamRoutes(instance, queues), {
+    prefix: "/api/admin/upstream",
+  });
   app.register(async (instance) => keyRoutes(instance, queues), { prefix: "/api/keys" });
+  app.register(async (instance) => healthRoutes(instance, redis), { prefix: "/health" });
 
   app.addHook("onClose", async () => {
     await Promise.all([queues.submissionQueue.close(), queues.syncQueue.close()]);
