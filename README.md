@@ -120,7 +120,7 @@ pnpm test:e2e
 
 ## 备份
 
-数据库备份包含加密后的完整 Key。恢复时必须同时具备原 `ENCRYPTION_KEY_BASE64`，否则无法解密历史数据。
+数据库备份包含加密后的完整 Key。恢复时必须同时具备原 `ENCRYPTION_KEY_BASE64` 和 `HMAC_KEY_BASE64`：前者用于解密历史数据，后者用于保持历史 Key 的去重一致性。
 
 ```bash
 docker compose exec -T postgres pg_dump -U keyhub keyhub > keyhub.sql
