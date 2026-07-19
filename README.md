@@ -52,6 +52,22 @@ curl -fsS http://localhost:8080/health/ready
 
 `migrate` 服务会先应用 Prisma 迁移并创建或更新管理员账号，成功后 API 和 Worker 才启动。生产环境应在 Web 服务前配置 HTTPS 反向代理，并把 `WEB_ORIGIN` 设置为实际 HTTPS 域名。
 
+## 使用现有 PostgreSQL 和 Redis
+
+`docker-compose.external.yml` 仅启动 `migrate`、`api`、`worker` 和 `web`，不会创建 PostgreSQL、Redis 或相关数据卷。请从专用示例文件复制一份独立环境配置，然后检查配置并启动：
+
+```bash
+cp .env.external.example .env.external
+docker compose --env-file .env.external -f docker-compose.external.yml config
+docker compose --env-file .env.external -f docker-compose.external.yml up -d --build
+docker compose --env-file .env.external -f docker-compose.external.yml ps
+curl -fsS http://localhost:8080/health/ready
+```
+
+`DATABASE_URL` 和 `REDIS_URL` 必须指向容器内可访问的地址；容器内的 `localhost` 指向容器自身，并非宿主机。同一台服务器上的外部服务可根据平台和网络配置使用 `host.docker.internal`、映射为 `host-gateway` 的主机名，或服务器网络地址。外部数据库必须预先创建，且连接账号需要具备执行 Prisma 迁移的权限；Redis 的认证信息和 TLS 配置应写入完整的 `REDIS_URL`。
+
+迁移或恢复已有数据时，必须保留并继续使用原来的 `ENCRYPTION_KEY_BASE64`，否则无法解密历史 Key。
+
 ## 上游配置
 
 使用管理员账号登录 KeyHub，进入 `Upstream` 页面填写获授权的百一灵枢供应商账号和密码。凭据加密后保存，Worker 会登录并自动选择 `ModelBoxs-Claude-按量（Claude 官方）` 渠道。若上游要求验证码，连接状态会变为阻塞，自动任务不会绕过验证码。
