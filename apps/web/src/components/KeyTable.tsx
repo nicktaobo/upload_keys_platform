@@ -2,12 +2,13 @@ import { Button, Table, Tag, Tooltip, Typography } from "antd";
 import { RotateCcw } from "lucide-react";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { KeyRecord } from "../api/client";
+import { formatDateTime } from "../utils/date";
 
 const statusColor: Record<KeyRecord["status"], string> = {
   pending: "default", submitting: "processing", submitted: "success", test_failed: "warning", retrying: "processing", upstream_error: "error",
 };
 const label = (value: string) => value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
-const date = (value: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
+const date = formatDateTime;
 
 export function KeyTable({ records, pagination, admin = false, onReveal, onRetry }: {
   records: KeyRecord[];

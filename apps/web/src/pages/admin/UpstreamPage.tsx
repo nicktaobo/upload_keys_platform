@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import type { UpstreamConnection } from "../../api/client";
 import { AsyncState } from "../../components/AsyncState";
+import { formatDateTime } from "../../utils/date";
 
-const format = (value: string | null) => value ? new Date(value).toLocaleString() : "Never";
+const format = (value: string | null) => value ? formatDateTime(value) : "Never";
 export function UpstreamPage() {
   const [connection, setConnection] = useState<UpstreamConnection | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState<string | null>(null), [saving, setSaving] = useState(false), [syncing, setSyncing] = useState(false);
   const [toast, context] = message.useMessage();

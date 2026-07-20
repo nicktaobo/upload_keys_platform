@@ -7,6 +7,7 @@ import type { KeyRecord, KeyStatus, KeySummary } from "../api/client";
 import { AsyncState } from "../components/AsyncState";
 import { KeyTable } from "../components/KeyTable";
 import { RevealKeyModal } from "../components/RevealKeyModal";
+import { formatDateTime } from "../utils/date";
 
 const PAGE_SIZE = 20;
 
@@ -35,7 +36,7 @@ export function KeysPage() {
     }
   };
   return <>{toastContext}<Flex justify="space-between" align="start" gap={16} wrap><div><Typography.Title level={2}>My Keys</Typography.Title><Typography.Paragraph type="secondary">Submission status and current upstream usage.</Typography.Paragraph></div><Space><Button aria-label="Refresh data" icon={<RefreshCw size={16} />} loading={refreshing} onClick={() => void refresh()}>Refresh</Button><Link to="/submit"><Button type="primary" icon={<Send size={16} />}>Submit Key</Button></Link></Space></Flex>
-    {summary && <div className="metrics"><Statistic title="Submitted Keys" value={summary.total} /><Statistic title="Healthy" value={summary.healthy} /><Statistic title="Accumulated usage" value={summary.usageUsd} formatter={() => `$${summary.usageUsd.toFixed(2)}`} /><Statistic title="Latest sample" value={summary.latestSampleAt ? new Date(summary.latestSampleAt).toLocaleString() : "No samples"} /></div>}
+    {summary && <div className="metrics"><Statistic title="Submitted Keys" value={summary.total} /><Statistic title="Healthy" value={summary.healthy} /><Statistic title="Accumulated usage" value={summary.usageUsd} formatter={() => `$${summary.usageUsd.toFixed(2)}`} /><Statistic title="Latest sample" value={summary.latestSampleAt ? formatDateTime(summary.latestSampleAt) : "No samples"} /></div>}
     <div className="table-toolbar"><Select aria-label="Filter by status" placeholder="All statuses" allowClear value={status} onChange={(nextStatus) => { setStatus(nextStatus); setPage(1); }} options={["pending", "submitting", "submitted", "test_failed", "retrying", "upstream_error"].map((value) => ({ value, label: value.replaceAll("_", " ").replace(/^./, (x) => x.toUpperCase()) }))} /></div>
     <AsyncState loading={loading} error={error} empty={!loading && !error && records.length === 0}><KeyTable records={records} pagination={{ current: page, pageSize: PAGE_SIZE, total, showSizeChanger: false, onChange: setPage }} onReveal={(record) => void reveal(record)} /></AsyncState>
     <RevealKeyModal value={revealed} onClose={() => setRevealed(null)} />

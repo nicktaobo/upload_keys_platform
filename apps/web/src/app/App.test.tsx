@@ -167,6 +167,7 @@ describe("KeyHub application", () => {
     await actor.type(screen.getByLabelText("API Key"), "sk-ant-valid-key");
     await actor.click(screen.getByRole("button", { name: "Submit Key" }));
     expect(await screen.findByText("1 Key accepted")).toBeVisible();
+    expect(screen.getByLabelText("API Key")).toHaveValue("");
     expect(fetchMock).toHaveBeenCalledWith("/api/keys", expect.objectContaining({ headers: expect.objectContaining({ "X-CSRF-Token": "csrf-user" }) }));
 
     fetchMock.mockImplementation(async (input, init) => {
