@@ -84,6 +84,7 @@ describe("KeyHub application", () => {
       { path: "/api/auth/me", body: { user: apiUser, csrfToken: "csrf-user" } },
       { path: "/api/keys/summary", body: { submittedCount: 12, healthyCount: 9, usageUsd: 184.5, latestSampleAt: key.sampledAt } },
       { path: "/api/keys", body: { items: [{ ...key, status: "UPSTREAM_ERROR", failureMessage: "This organization has been disabled." }], total: 1 } },
+      { method: "POST", path: "/api/keys/k1/retry", body: { message: "Retry queued" } },
       { method: "POST", path: "/api/keys/refresh", body: { message: "Refresh queued" } },
       { method: "POST", path: "/api/keys/k1/reveal", body: { apiKey: "sk-ant-api03-full-secret" } },
     ]);
@@ -112,6 +113,10 @@ describe("KeyHub application", () => {
         headers: expect.not.objectContaining({ "Content-Type": "application/json" }),
       }),
     );
+
+    await actor.click(screen.getByRole("button", { name: "Retry k1" }));
+    await actor.click(await screen.findByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Retry queued")).toBeVisible();
   });
 
   it("requests the selected page of the current user's Keys", async () => {

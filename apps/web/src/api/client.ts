@@ -102,6 +102,7 @@ export const api = {
     return { ...result, items: result.items.map(normalizeKey) };
   },
   refresh: () => post<{ message: string }>("/keys/refresh"),
+  retryOwnedKey: (id: string) => post<{ message: string }>(`/keys/${id}/retry`),
   reveal: async (id: string) => {
     const result = await post<{ apiKey: string }>(`/keys/${id}/reveal`);
     return { key: result.apiKey };

@@ -141,6 +141,38 @@ export async function keyRoutes(
   );
 
   app.post(
+    "/:id/retry",
+    { preHandler: app.verifyCsrf },
+    async (request, reply) => {
+      const params = idParamsSchema.safeParse(request.params);
+      if (!params.success) return reply.code(404).send({ message: "记录不存在" });
+      const record = await prisma.keyRecord.findFirst({
+        where: { id: params.data.id, ownerId: request.currentUser!.id },
+      });
+      if (!record) return reply.code(404).send({ message: "记录不存在" });
+      const retry = await prisma.keyRecord.updateMany({
+        where: {
+          id: record.id,
+          ownerId: request.currentUser!.id,
+          status: { in: ["TEST_FAILED", "UPSTREAM_ERROR"] },
+        },
+        data: { status: "RETRYING", failureCode: null, failureMessage: null },
+      });
+      if (retry.count !== 1) return reply.code(409).send({ message: "当前状态不可重试" });
+      await queues.submissionQueue.add(
+        "submit-key",
+        { keyRecordId: record.id },
+        {
+          jobId: `retry-${record.id}-${Date.now()}`,
+          attempts: 3,
+          backoff: { type: "exponential", delay: 1000 },
+        },
+      );
+      return reply.code(202).send({ message: "重试任务已提交" });
+    },
+  );
+
+  app.post(
     "/:id/reveal",
     { preHandler: app.verifyCsrf },
     async (request, reply) => {

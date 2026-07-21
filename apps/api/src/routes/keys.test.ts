@@ -166,6 +166,55 @@ describe("owner-scoped Key API", () => {
     expect(revealed.json()).toEqual({ apiKey: fullKey });
   });
 
+  it("lets users retry only their own failed Keys", async () => {
+    const alice = await createUser({ username: "retry-owner", password: "password-123" });
+    const bob = await createUser({ username: "retry-other", password: "password-123" });
+    const aliceSession = await login(app, alice.username, "password-123");
+    const bobSession = await login(app, bob.username, "password-123");
+    const record = await prisma.keyRecord.create({
+      data: {
+        ownerId: alice.id,
+        encryptedKey: "ciphertext",
+        encryptionIv: "iv",
+        encryptionTag: "tag",
+        keyFingerprint: "owner-retry-fingerprint",
+        maskedKey: "sk-ant-****X7AA",
+        keySuffix: "X7AA",
+        warrantyHours: 1,
+        status: "UPSTREAM_ERROR",
+        failureCode: "UPSTREAM_REJECTED",
+        failureMessage: "overloaded_error",
+      },
+    });
+    const testQueues = createKeyHubQueues(process.env.REDIS_URL ?? "redis://localhost:6380");
+    const add = vi.spyOn(Object.getPrototypeOf(testQueues.submissionQueue), "add").mockResolvedValue({} as never);
+
+    try {
+      const denied = await app.inject({
+        method: "POST",
+        url: `/api/keys/${record.id}/retry`,
+        headers: { cookie: bobSession.cookie, "x-csrf-token": bobSession.csrfToken },
+      });
+      expect(denied.statusCode).toBe(404);
+
+      const retry = await app.inject({
+        method: "POST",
+        url: `/api/keys/${record.id}/retry`,
+        headers: { cookie: aliceSession.cookie, "x-csrf-token": aliceSession.csrfToken },
+      });
+      expect(retry.statusCode).toBe(202);
+      expect(retry.json()).toEqual({ message: "重试任务已提交" });
+      expect(await prisma.keyRecord.findUnique({ where: { id: record.id } })).toMatchObject({
+        status: "RETRYING",
+        failureCode: null,
+        failureMessage: null,
+      });
+    } finally {
+      add.mockRestore();
+      await Promise.all([testQueues.submissionQueue.close(), testQueues.syncQueue.close()]);
+    }
+  });
+
   it("orders records with equal creation times by id descending", async () => {
     const alice = await createUser({ username: "stable-order-alice", password: "password-123" });
     const session = await login(app, alice.username, "password-123");

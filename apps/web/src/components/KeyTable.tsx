@@ -34,12 +34,12 @@ export function KeyTable({ records, pagination, admin = false, onReveal, onRetry
     { title: "Sampled", dataIndex: "sampledAt", width: 180, render: date },
     { title: "Submitted", dataIndex: "submittedAt", width: 180, render: date },
     { title: "Failure", dataIndex: "failureMessage", width: 260, render: (value: string | null) => value ?? "—" },
-    ...(isAdmin ? [{
+    ...(onRetry ? [{
       title: "", key: "action", width: 60, fixed: "right" as const,
       render: (_: unknown, record: KeyRecord) => record.status === "upstream_error" || record.status === "test_failed"
         ? <Tooltip title="Retry submission"><Button aria-label={`Retry ${record.id}`} icon={<RotateCcw size={16} />} onClick={() => onRetry?.(record)} /></Tooltip>
         : null,
     }] : []),
   ];
-  return <Table rowKey="id" size="small" columns={columns} dataSource={records} pagination={pagination} scroll={{ x: isAdmin ? 1350 : 1300 }} />;
+  return <Table rowKey="id" size="small" columns={columns} dataSource={records} pagination={pagination} scroll={{ x: isAdmin || onRetry ? 1350 : 1300 }} />;
 }
