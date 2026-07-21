@@ -25,11 +25,11 @@ export function parseBatch(input: string): ParsedKeyRow[] {
     if (!line) continue;
 
     const match = /^(\S+?)\s*(?:,\s*|\s+)(\S+)$/u.exec(line);
-    const apiKey = match?.[1];
-    const warranty = Number(match?.[2]);
+    const apiKey = match?.[1] ?? (/^[^,\s]+$/u.test(line) ? line : undefined);
+    const warranty = match ? Number(match[2]) : 1;
 
     if (!apiKey) {
-      issues.push({ row: index + 1, message: "每行必须包含 Key 和质保期" });
+      issues.push({ row: index + 1, message: "每行必须包含一个 Key，可选填写质保期" });
       continue;
     }
     if (!Number.isInteger(warranty) || warranty < 1 || warranty > 8760) {

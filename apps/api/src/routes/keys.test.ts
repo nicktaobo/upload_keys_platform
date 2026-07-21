@@ -39,12 +39,16 @@ describe("owner-scoped Key API", () => {
       headers: { cookie: session.cookie, "x-csrf-token": session.csrfToken },
       payload: {
         mode: "batch",
-        text: "sk-ant-api03-batch-one-M2PA, 48\nsk-ant-api03-batch-two-Q9BB 72",
+        text: "sk-ant-api03-batch-one-M2PA, 48\nsk-ant-api03-batch-two-Q9BB 72\nsk-ant-api03-batch-default-A1CC",
       },
     });
     expect(batch.statusCode).toBe(202);
-    expect(batch.json<{ created: unknown[] }>().created).toHaveLength(2);
-    expect(await prisma.keyRecord.count({ where: { ownerId: alice.id } })).toBe(3);
+    expect(batch.json<{ created: unknown[] }>().created).toHaveLength(3);
+    expect(await prisma.keyRecord.count({ where: { ownerId: alice.id } })).toBe(4);
+    expect(await prisma.keyRecord.findFirst({
+      where: { ownerId: alice.id, keySuffix: "A1CC" },
+      select: { warrantyHours: true },
+    })).toEqual({ warrantyHours: 1 });
   });
 
   it("marks only records whose submission jobs fail to enqueue as retryable", async () => {

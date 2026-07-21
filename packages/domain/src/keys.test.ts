@@ -15,6 +15,13 @@ describe("parseBatch", () => {
     ]);
   });
 
+  it("defaults Key-only rows to a one-hour warranty", () => {
+    expect(parseBatch("sk-ant-a\nsk-ant-b")).toEqual([
+      { apiKey: "sk-ant-a", warrantyHours: 1 },
+      { apiKey: "sk-ant-b", warrantyHours: 1 },
+    ]);
+  });
+
   it("ignores blank lines and surrounding whitespace", () => {
     expect(parseBatch("\n  sk-ant-a,24  \n\n")).toEqual([
       { apiKey: "sk-ant-a", warrantyHours: 24 },
