@@ -146,3 +146,13 @@ docker compose exec -T postgres psql -U keyhub keyhub < keyhub.sql
 ```
 
 不要把 `.env`、真实 Key、Cookie、Session、CSRF Token 或数据库备份提交到 Git。
+
+本地启动:
+
+```bash
+docker compose --env-file .env.external -f docker-compose.external.yml build
+docker compose --env-file .env.external -f docker-compose.external.yml up
+```
+服务器启动:
+先push 代码github action build
+服务器执行 shell 脚本
