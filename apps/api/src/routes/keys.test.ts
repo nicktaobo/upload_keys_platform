@@ -74,6 +74,27 @@ describe("owner-scoped Key API", () => {
     })).toEqual({ warrantyHours: 24 });
   });
 
+  it("stores Keys locally without enqueueing when upstream is disabled", async () => {
+    const alice = await createUser({ username: "local-only-alice", password: "password-123" });
+    const session = await login(app, alice.username, "password-123");
+    const previous = process.env.UPSTREAM_ENABLED;
+    process.env.UPSTREAM_ENABLED = "false";
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/keys",
+        headers: { cookie: session.cookie, "x-csrf-token": session.csrfToken },
+        payload: { mode: "single", apiKey: "sk-ant-api03-local-only-X7AA", warrantyHours: 1 },
+      });
+      expect(response.statusCode).toBe(202);
+      expect(response.json<{ created: unknown[] }>().created).toHaveLength(1);
+      expect(await prisma.keyRecord.findFirst({ where: { ownerId: alice.id }, select: { status: true } })).toEqual({ status: "PENDING" });
+    } finally {
+      if (previous === undefined) delete process.env.UPSTREAM_ENABLED;
+      else process.env.UPSTREAM_ENABLED = previous;
+    }
+  });
+
   it("marks only records whose submission jobs fail to enqueue as retryable", async () => {
     const alice = await createUser({ username: "queue-alice", password: "password-123" });
     const session = await login(app, alice.username, "password-123");

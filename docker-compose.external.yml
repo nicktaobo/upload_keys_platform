@@ -26,6 +26,7 @@ services:
       - ENCRYPTION_KEY_BASE64=${ENCRYPTION_KEY_BASE64:?ENCRYPTION_KEY_BASE64 is required}
       - HMAC_KEY_BASE64=${HMAC_KEY_BASE64:?HMAC_KEY_BASE64 is required}
       - WEB_ORIGIN=${WEB_ORIGIN:-http://localhost:8080}
+      - UPSTREAM_ENABLED=${UPSTREAM_ENABLED:-true}
       - API_PORT=3000
     depends_on:
       migrate:

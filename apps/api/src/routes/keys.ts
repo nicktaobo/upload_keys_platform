@@ -107,6 +107,7 @@ export async function keyRoutes(
 
       try {
         const created = await createKeyRecords(request.currentUser!.id, rows, secrets);
+        if (process.env.UPSTREAM_ENABLED === "false") return reply.code(202).send({ created });
         const enqueueResults = await Promise.allSettled(
           created.map((record) =>
             queues.submissionQueue.add(
