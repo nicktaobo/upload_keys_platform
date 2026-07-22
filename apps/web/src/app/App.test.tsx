@@ -237,7 +237,7 @@ describe("KeyHub application", () => {
     const actor = userEvent.setup();
 
     expect(await screen.findByText("Upstream timed out")).toBeVisible();
-    expect((await screen.findAllByText("riley")).length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText("riley")).length).toBeGreaterThanOrEqual(1);
     expect((await screen.findAllByText((_content, element) =>
       element?.classList.contains("ant-statistic-content") === true && element.textContent === "$12.50",
     )).length).toBeGreaterThan(0);

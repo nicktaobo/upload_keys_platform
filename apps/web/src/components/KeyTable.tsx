@@ -3,11 +3,11 @@ import { RotateCcw } from "lucide-react";
 import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
 import type { KeyRecord } from "../api/client";
 import { formatDateTime } from "../utils/date";
+import { useI18n } from "../app/i18n";
 
 const statusColor: Record<KeyRecord["status"], string> = {
   pending: "default", submitting: "processing", submitted: "success", test_failed: "warning", retrying: "processing", upstream_error: "error",
 };
-const label = (value: string) => value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 const date = formatDateTime;
 
 export function KeyTable({ records, pagination, admin = false, onReveal, onRetry }: {
@@ -17,23 +17,24 @@ export function KeyTable({ records, pagination, admin = false, onReveal, onRetry
   onReveal?: (record: KeyRecord) => void;
   onRetry?: (record: KeyRecord) => void;
 }) {
+  const { t } = useI18n();
   const isAdmin = admin === true;
   const columns: ColumnsType<KeyRecord> = [
-    ...(isAdmin ? [{ title: "Owner", dataIndex: ["owner", "username"], width: 130 }] : []),
+    ...(isAdmin ? [{ title: t("table.owner", "Owner"), dataIndex: ["owner", "username"], width: 130 }] : []),
     {
-      title: "Key", dataIndex: "maskedKey", width: 210, fixed: "left",
+      title: t("table.key", "Key"), dataIndex: "maskedKey", width: 210, fixed: "left",
       render: (value: string, record) => isAdmin
         ? <Typography.Text code>{value}</Typography.Text>
         : <Button type="link" className="key-link" onClick={() => onReveal?.(record)}>{value}</Button>,
     },
-    { title: "Status", dataIndex: "status", width: 130, render: (value: KeyRecord["status"]) => <Tag color={statusColor[value]}>{label(value)}</Tag> },
-    { title: "Test", dataIndex: "testResult", width: 100, render: (value: string | null) => value ? label(value) : "—" },
-    { title: "Access", dataIndex: "accessStatus", width: 100, render: (value: string | null) => value ? label(value) : "—" },
-    { title: "Usage", dataIndex: "usageUsd", width: 100, align: "right", render: (value: number) => `$${value.toFixed(2)}` },
-    { title: "Sites", dataIndex: "usageSiteCount", width: 75, align: "right" },
-    { title: "Sampled", dataIndex: "sampledAt", width: 180, render: date },
-    { title: "Submitted", dataIndex: "submittedAt", width: 180, render: date },
-    { title: "Failure", dataIndex: "failureMessage", width: 260, render: (value: string | null) => value ?? "—" },
+    { title: t("table.status", "Status"), dataIndex: "status", width: 130, render: (value: KeyRecord["status"]) => <Tag color={statusColor[value]}>{t(`status.${value}`, value)}</Tag> },
+    { title: t("table.test", "Test"), dataIndex: "testResult", width: 100, render: (value: string | null) => value ? value : "—" },
+    { title: t("table.access", "Access"), dataIndex: "accessStatus", width: 100, render: (value: string | null) => value ? value : "—" },
+    { title: t("table.usage", "Usage"), dataIndex: "usageUsd", width: 100, align: "right", render: (value: number) => `$${value.toFixed(2)}` },
+    { title: t("table.sites", "Sites"), dataIndex: "usageSiteCount", width: 75, align: "right" },
+    { title: t("table.sampled", "Sampled"), dataIndex: "sampledAt", width: 180, render: date },
+    { title: t("table.submitted", "Submitted"), dataIndex: "submittedAt", width: 180, render: date },
+    { title: t("table.failure", "Failure"), dataIndex: "failureMessage", width: 260, render: (value: string | null) => value ?? "—" },
     ...(onRetry ? [{
       title: "", key: "action", width: 60, fixed: "right" as const,
       render: (_: unknown, record: KeyRecord) => record.status === "upstream_error" || record.status === "test_failed"
