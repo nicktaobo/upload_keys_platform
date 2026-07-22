@@ -11,6 +11,7 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@keyhub/domain": "workspace:*",
     "antd": "^5.27.0",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",

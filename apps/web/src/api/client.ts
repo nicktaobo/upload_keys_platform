@@ -20,6 +20,7 @@ export interface KeyRecord {
 }
 export interface KeySummary { total: number; healthy: number; usageUsd: number; latestSampleAt: string | null }
 export interface ApiUser { id: string; username: string; role: Role; isActive: boolean }
+export interface AdminKeyStat { ownerId: string; username: string; keyCount: number; healthyCount: number; usageUsd: number }
 interface RawSessionUser { id: string; username: string; role: ApiRole }
 interface RawApiUser { id: string; username: string; role: ApiRole; isActive: boolean }
 interface RawKeyRecord extends Omit<KeyRecord, "status" | "usageUsd"> {
@@ -136,9 +137,16 @@ export const api = {
   },
   setUserStatus: (id: string, isActive: boolean) => post<void>(`/admin/users/${id}/status`, { isActive }),
   resetPassword: (id: string, password: string) => post<void>(`/admin/users/${id}/reset-password`, { password }),
-  adminKeys: async (page = 1, pageSize = 20) => {
+  adminKeys: async (page = 1, pageSize = 20, ownerId?: string, status?: KeyStatus) => {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    const result = await request<{ items: RawKeyRecord[]; total: number }>(`/admin/keys?${query.toString()}`);
+    if (ownerId) query.set("ownerId", ownerId);
+    if (status) query.set("status", status.toUpperCase());
+    const result = await request<{
+      items: RawKeyRecord[];
+      total: number;
+      owners: Array<{ id: string; username: string }>;
+      stats: AdminKeyStat[];
+    }>(`/admin/keys?${query.toString()}`);
     return { ...result, items: result.items.map(normalizeKey) };
   },
   retryKey: (id: string) => post<{ message: string }>(`/admin/keys/${id}/retry`),

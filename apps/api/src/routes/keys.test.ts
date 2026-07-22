@@ -51,6 +51,29 @@ describe("owner-scoped Key API", () => {
     })).toEqual({ warrantyHours: 1 });
   });
 
+  it("deduplicates repeated Keys in a batch before creating records", async () => {
+    const alice = await createUser({ username: "dedupe-alice", password: "password-123" });
+    const session = await login(app, alice.username, "password-123");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/keys",
+      headers: { cookie: session.cookie, "x-csrf-token": session.csrfToken },
+      payload: {
+        mode: "batch",
+        text: "sk-ant-api03-duplicate-X7AA, 24\nsk-ant-api03-duplicate-X7AA, 48\nsk-ant-api03-unique-Q9BB",
+      },
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json<{ created: unknown[] }>().created).toHaveLength(2);
+    expect(await prisma.keyRecord.count({ where: { ownerId: alice.id } })).toBe(2);
+    expect(await prisma.keyRecord.findFirst({
+      where: { ownerId: alice.id, keySuffix: "X7AA" },
+      select: { warrantyHours: true },
+    })).toEqual({ warrantyHours: 24 });
+  });
+
   it("marks only records whose submission jobs fail to enqueue as retryable", async () => {
     const alice = await createUser({ username: "queue-alice", password: "password-123" });
     const session = await login(app, alice.username, "password-123");

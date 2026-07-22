@@ -177,19 +177,17 @@ describe("KeyHub application", () => {
 
     fetchMock.mockImplementation(async (input, init) => {
       const path = new URL(String(input), "http://keyhub.test").pathname;
-      if (path === "/api/keys" && init?.method === "POST") {
-        return jsonResponse(
-          { message: "提交内容有误", issues: [{ row: 2, message: "Duplicate Key" }] },
-          400,
-        );
-      }
+      if (path === "/api/keys" && init?.method === "POST") return jsonResponse({ created: [{ id: "batch-created-1" }, { id: "batch-created-2" }] });
       return jsonResponse({ message: "Unhandled" }, 500);
     });
 
     await actor.click(screen.getByRole("tab", { name: "Batch paste" }));
-    await actor.type(screen.getByLabelText("Keys and warranty hours"), "sk-ant-one, 720\nsk-ant-two, 720");
+    await actor.type(screen.getByLabelText("Keys and warranty hours"), "sk-ant-one, 720\nsk-ant-one, 720\nsk-ant-two, 720");
+    expect(screen.getByText("Total rows").parentElement).toHaveTextContent("3");
+    expect(screen.getByText("Ready to submit").parentElement).toHaveTextContent("2");
+    expect(screen.getByText("Duplicates").parentElement).toHaveTextContent("1");
     await actor.click(screen.getByRole("button", { name: "Submit batch" }));
-    expect(await screen.findByText("Row 2: Duplicate Key")).toBeVisible();
+    expect(await screen.findByText(/2 Keys accepted/)).toBeVisible();
   });
 
   it("shows admin-only navigation and completes user operations", async () => {
@@ -228,7 +226,7 @@ describe("KeyHub application", () => {
   it("keeps admin Keys masked and provides retry, sync, and upstream credential flows", async () => {
     installApi([
       { path: "/api/auth/me", body: { user: apiAdmin, csrfToken: "csrf-admin" } },
-      { path: "/api/admin/keys", body: { items: [{ ...key, owner: { id: "u1", username: "riley" }, status: "UPSTREAM_ERROR", failureMessage: "Upstream timed out" }], total: 1 } },
+      { path: "/api/admin/keys", body: { items: [{ ...key, owner: { id: "u1", username: "riley" }, status: "UPSTREAM_ERROR", failureMessage: "Upstream timed out" }], total: 1, owners: [{ id: "u1", username: "riley" }], stats: [{ ownerId: "u1", username: "riley", keyCount: 4, healthyCount: 3, usageUsd: 12.5 }] } },
       { method: "POST", path: "/api/admin/keys/k1/retry", body: { message: "Retry queued" } },
       { path: "/api/admin/upstream", body: { state: "blocked", failureMessage: "CAPTCHA required", lastLoginAt: null, lastSyncAt: key.sampledAt, username: "supplier@example.com" } },
       { method: "PUT", path: "/api/admin/upstream", body: { success: true } },
@@ -239,6 +237,10 @@ describe("KeyHub application", () => {
     const actor = userEvent.setup();
 
     expect(await screen.findByText("Upstream timed out")).toBeVisible();
+    expect((await screen.findAllByText("riley")).length).toBeGreaterThanOrEqual(2);
+    expect(await screen.findByText((_content, element) =>
+      element?.classList.contains("ant-statistic-content") === true && element.textContent === "$12.50",
+    )).toBeVisible();
     expect(screen.queryByRole("button", { name: key.maskedKey })).not.toBeInTheDocument();
     await actor.click(screen.getByRole("button", { name: "Retry k1" }));
     await actor.click(await screen.findByRole("button", { name: "Retry" }));

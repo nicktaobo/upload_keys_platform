@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   KeyInputError,
+  analyzeBatch,
   fingerprintKey,
   maskKey,
   parseBatch,
@@ -34,10 +35,22 @@ describe("parseBatch", () => {
     );
   });
 
-  it("rejects duplicate Keys in one batch without including the Key in the error", () => {
-    expect(() => parseBatch("sk-ant-a,24\nsk-ant-a,48")).toThrowError(
-      new KeyInputError([{ row: 2, message: "批次中存在重复 Key" }]),
-    );
+  it("keeps the first row when a batch contains duplicate Keys", () => {
+    expect(parseBatch("sk-ant-a,24\nsk-ant-a,48\nsk-ant-b")).toEqual([
+      { apiKey: "sk-ant-a", warrantyHours: 24 },
+      { apiKey: "sk-ant-b", warrantyHours: 1 },
+    ]);
+  });
+});
+
+describe("analyzeBatch", () => {
+  it("summarizes non-empty, unique, duplicate, and invalid rows", () => {
+    expect(analyzeBatch("sk-ant-a\nsk-ant-a,2\nnot valid, nope\n\n")).toMatchObject({
+      totalRows: 3,
+      submitableRows: 1,
+      duplicateRows: 1,
+      invalidRows: 1,
+    });
   });
 });
 

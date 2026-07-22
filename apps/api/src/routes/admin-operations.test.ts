@@ -90,6 +90,36 @@ describe("administrator operations", () => {
     });
   });
 
+  it("filters administrator Keys and returns owner statistics", async () => {
+    const admin = await createUser({ username: "stats-admin", password: "password-123", role: "ADMIN" });
+    const alice = await createUser({ username: "stats-alice", password: "password-123" });
+    const bob = await createUser({ username: "stats-bob", password: "password-123" });
+    const session = await login(app, admin.username, "password-123");
+    const aliceRecords = await createKeyRecords(alice.id, [
+      { apiKey: "sk-ant-api03-stats-alice-A1AA", warrantyHours: 1 },
+      { apiKey: "sk-ant-api03-stats-alice-B2BB", warrantyHours: 1 },
+    ], loadKeySecrets());
+    const [bobRecord] = await createKeyRecords(bob.id, [
+      { apiKey: "sk-ant-api03-stats-bob-C3CC", warrantyHours: 1 },
+    ], loadKeySecrets());
+    await prisma.keyRecord.update({ where: { id: aliceRecords[0]!.id }, data: { accessStatus: "通过", usageUsd: 12.5 } });
+    await prisma.keyRecord.update({ where: { id: aliceRecords[1]!.id }, data: { status: "UPSTREAM_ERROR", usageUsd: 3.25 } });
+    await prisma.keyRecord.update({ where: { id: bobRecord!.id }, data: { accessStatus: "通过", usageUsd: 7 } });
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/admin/keys?ownerId=${alice.id}&status=UPSTREAM_ERROR`,
+      headers: { cookie: session.cookie },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      total: 1,
+      items: [{ owner: { id: alice.id }, status: "UPSTREAM_ERROR" }],
+      stats: [{ ownerId: alice.id, username: alice.username, keyCount: 1, healthyCount: 0, usageUsd: 3.25 }],
+    });
+  });
+
   it("orders administrator records with equal creation times by id descending", async () => {
     const admin = await createUser({ username: "stable-admin", password: "password-123", role: "ADMIN" });
     const alice = await createUser({ username: "stable-owner", password: "password-123" });

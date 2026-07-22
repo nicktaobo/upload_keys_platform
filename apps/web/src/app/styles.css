@@ -26,6 +26,8 @@ body { margin: 0; min-width: 320px; }
 .channel-strip { display: flex; align-items: center; gap: 16px; margin: 18px 0 20px; padding: 12px 16px; border-left: 3px solid #176b5b; background: #eef4f2; }
 .channel-strip span { color: #66736f; }
 .form-column { max-width: 620px; }
+.batch-textarea textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; line-height: 1.8; white-space: pre; overflow-x: auto; }
+.batch-stats { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: -2px 0 16px; }
 .blocking-alert { margin-bottom: 20px; }
 .operations-actions { margin-top: 20px; }
 .ant-descriptions { margin-bottom: 28px; }
