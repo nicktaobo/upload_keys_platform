@@ -28,6 +28,8 @@ body { margin: 0; min-width: 320px; }
 .form-column { max-width: 620px; }
 .batch-textarea textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 14px; line-height: 1.8; white-space: pre; overflow-x: auto; }
 .batch-stats { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: -2px 0 16px; }
+.admin-total-metrics { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); margin: 18px 0 24px; }
+.admin-total-metrics .ant-card { min-width: 0; }
 .blocking-alert { margin-bottom: 20px; }
 .operations-actions { margin-top: 20px; }
 .ant-descriptions { margin-bottom: 28px; }

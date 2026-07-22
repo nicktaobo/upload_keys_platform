@@ -21,8 +21,14 @@ export function AdminKeysPage() {
   }, [page, ownerId, status]);
   useEffect(() => { void load(); }, [load]);
   const confirm = async () => { if (!retry) return; setBusy(true); try { toast.success((await api.retryKey(retry.id)).message); setRetry(null); } catch (cause) { toast.error(cause instanceof Error ? cause.message : "Retry failed"); } finally { setBusy(false); } };
+  const aggregate = stats.reduce((summary, stat) => ({
+    keyCount: summary.keyCount + stat.keyCount,
+    healthyCount: summary.healthyCount + stat.healthyCount,
+    usageUsd: summary.usageUsd + stat.usageUsd,
+  }), { keyCount: 0, healthyCount: 0, usageUsd: 0 });
   return <>{context}<Typography.Title level={2}>All Keys</Typography.Title><Typography.Paragraph type="secondary">Masked records across all owners, including sanitized failure details.</Typography.Paragraph>
     <Flex gap={12} wrap="wrap" className="table-toolbar"><Select aria-label="Filter by account" allowClear showSearch optionFilterProp="label" placeholder="All accounts" value={ownerId} onChange={(value) => { setOwnerId(value); setPage(1); }} options={owners.map((owner) => ({ value: owner.id, label: owner.username }))} /><Select aria-label="Filter by status" allowClear placeholder="All statuses" value={status} onChange={(value) => { setStatus(value); setPage(1); }} options={["pending", "submitting", "submitted", "test_failed", "retrying", "upstream_error"].map((value) => ({ value, label: value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()) }))} /></Flex>
+    {!ownerId && <Flex gap={12} wrap="wrap" className="admin-total-metrics"><Card size="small"><Statistic title="Users" value={stats.length} /></Card><Card size="small"><Statistic title="Keys" value={aggregate.keyCount} /></Card><Card size="small"><Statistic title="Healthy" value={aggregate.healthyCount} /></Card><Card size="small"><Statistic title="Usage" value={aggregate.usageUsd} precision={2} prefix="$" /></Card></Flex>}
     <Flex gap={12} wrap="wrap" className="metrics">{stats.map((stat) => <Card key={stat.ownerId} size="small" title={stat.username}><Space size={20}><Statistic title="Keys" value={stat.keyCount} /><Statistic title="Healthy" value={stat.healthyCount} /><Statistic title="Usage" value={stat.usageUsd} precision={2} prefix="$" /></Space></Card>)}</Flex>
     <AsyncState loading={loading} error={error} empty={!loading && !error && records.length === 0}><KeyTable admin records={records} pagination={{ current: page, pageSize: PAGE_SIZE, total, showSizeChanger: false, onChange: setPage }} onRetry={setRetry} /></AsyncState><Modal title="Retry submission" open={retry !== null} onCancel={() => setRetry(null)} onOk={() => void confirm()} okText="Retry" confirmLoading={busy}>Queue another submission attempt for <strong>{retry?.maskedKey}</strong>?</Modal></>;
 }

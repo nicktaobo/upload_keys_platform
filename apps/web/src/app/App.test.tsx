@@ -238,9 +238,9 @@ describe("KeyHub application", () => {
 
     expect(await screen.findByText("Upstream timed out")).toBeVisible();
     expect((await screen.findAllByText("riley")).length).toBeGreaterThanOrEqual(2);
-    expect(await screen.findByText((_content, element) =>
+    expect((await screen.findAllByText((_content, element) =>
       element?.classList.contains("ant-statistic-content") === true && element.textContent === "$12.50",
-    )).toBeVisible();
+    )).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: key.maskedKey })).not.toBeInTheDocument();
     await actor.click(screen.getByRole("button", { name: "Retry k1" }));
     await actor.click(await screen.findByRole("button", { name: "Retry" }));
@@ -267,6 +267,7 @@ describe("KeyHub application", () => {
     const actor = userEvent.setup();
 
     expect(await screen.findByRole("heading", { name: "All Keys" })).toBeVisible();
+    expect(document.querySelector(".admin-total-metrics")).toHaveTextContent("Users");
     await actor.click(await screen.findByTitle("2"));
 
     await waitFor(() =>
