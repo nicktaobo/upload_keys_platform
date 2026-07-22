@@ -3,9 +3,11 @@ WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY apps/web/package.json apps/web/package.json
+COPY packages/domain/package.json packages/domain/package.json
 RUN pnpm install --frozen-lockfile --filter @keyhub/web...
 COPY apps/web apps/web
-RUN pnpm --filter @keyhub/web build
+COPY packages/domain packages/domain
+RUN pnpm --filter @keyhub/domain build && pnpm --filter @keyhub/web build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
